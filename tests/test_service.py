@@ -97,5 +97,43 @@ class TestBioCoachService(unittest.TestCase):
         self.assertIn("respiración", high_check["watch_guidance"].lower())
         self.assertIn(high_check["stress_category"], ["HIGH", "SEVERE"])
 
+    @patch("backend.service.BioCoachService._fetch_recent_workouts")
+    @patch("backend.service.BioCoachService._fetch_recent_history")
+    def test_dashboard_summary_includes_weekly_calendar_and_worst_pillar(self, mock_hist, mock_wk):
+        """Dashboard summary generates 7-day calendar matrix and highlights worst pillar."""
+        mock_hist.return_value = [
+            {"recorded_date": "2026-11-16", "hrv_ms": 25.0, "resting_hr": 65.0, "sleep_hours": 5.5, "recovery_score": 42},
+            {"recorded_date": "2026-11-15", "hrv_ms": 60.0, "resting_hr": 53.0, "sleep_hours": 8.0, "recovery_score": 88}
+        ]
+        mock_wk.return_value = []
+
+        summary = self.service.get_dashboard_summary(days=7)
+        self.assertEqual(summary["status"], "success")
+        self.assertFalse(summary["is_day_one"])
+        self.assertEqual(len(summary["weekly_calendar"]), 2)
+
+        # Check worst aspect of latest bad day (2026-11-16)
+        today = summary["today"]
+        self.assertEqual(today["worst_aspect"]["pillar"], "HRV")
+        self.assertIn(today["worst_aspect"]["severity"], ["HIGH", "CRITICAL"])
+        self.assertIn("variabilidad", today["worst_aspect"]["detail"].lower())
+
+    def test_calculate_nutrition_plan_service(self):
+        """Service layer calculates complete metabolic and macro target."""
+        payload = {
+            "weight_kg": 70,
+            "height_cm": 172,
+            "age": 28,
+            "gender": "male",
+            "activity_level": "moderate",
+            "goal": "cut"
+        }
+        res = self.service.calculate_nutrition_plan(payload)
+        self.assertEqual(res["status"], "success")
+        self.assertGreater(res["bmr"], 1400)
+        self.assertGreater(res["tdee"], res["bmr"])
+        self.assertEqual(res["target_calories"], res["tdee"] - 400)
+        self.assertGreater(res["macros"]["protein_g"], 130)
+
 if __name__ == "__main__":
     unittest.main()

@@ -33,6 +33,10 @@ def main():
         gemini_key=gemini_key
     )
 
+    from scripts.generate_shortcuts import create_all_shortcuts
+    shortcuts_dir = os.path.join(PROJECT_ROOT, "shortcuts", "downloads")
+    create_all_shortcuts(shortcuts_dir)
+
     port = 8080
     server = create_server(host="0.0.0.0", port=port, service=service)
     print("=" * 65)

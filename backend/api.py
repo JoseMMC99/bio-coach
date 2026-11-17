@@ -94,6 +94,10 @@ class BioCoachAPIHandler:
                     "watch_feedback": f"🥗 Registrado: {cleaned['raw_text'][:50]}..."
                 }
 
+            elif clean_path in ["/api/v1/metabolism", "/metabolism"]:
+                result = self.service.calculate_nutrition_plan(body)
+                return 200, result
+
             else:
                 return 404, {"error": f"Ruta '{clean_path}' no encontrada."}
 
@@ -121,6 +125,10 @@ def create_server(host: str = "0.0.0.0", port: int = 8000, service: Optional[Bio
                 mime = "application/javascript" if req_path.endswith(".js") else "application/json"
                 self._serve_file(target_file, mime)
                 return
+            elif req_path.startswith("/shortcuts/"):
+                shortcut_file = os.path.join(PROJECT_ROOT, req_path.lstrip("/"))
+                self._serve_file(shortcut_file, "application/octet-stream")
+                return
 
             status, res = handler_logic.handle_request("GET", self.path, None)
             self._send_json(status, res)
@@ -141,6 +149,9 @@ def create_server(host: str = "0.0.0.0", port: int = 8000, service: Optional[Bio
             if os.path.exists(file_path):
                 self.send_response(200)
                 self.send_header("Content-Type", content_type)
+                if file_path.endswith(".shortcut") or file_path.endswith(".zip"):
+                    fname = os.path.basename(file_path)
+                    self.send_header("Content-Disposition", f'attachment; filename="{fname}"')
                 self.end_headers()
                 with open(file_path, "rb") as f:
                     self.wfile.write(f.read())

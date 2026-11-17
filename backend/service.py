@@ -190,12 +190,43 @@ class BioCoachService:
                 "is_day_one": True,
                 "today": None,
                 "trends": {"dates": [], "hrv": [], "rhr": [], "sleep": []},
+                "weekly_calendar": [],
                 "recent_workouts": []
             }
 
         # Reverse for chronological ordering in charts
         chronological = list(reversed(history))
         latest = history[0]
+        profile, _ = self._compute_rolling_baseline(history)
+
+        # Weekly Calendar Matrix with Pillar Analysis
+        day_names_es = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+        weekly_calendar = []
+
+        for r in chronological:
+            r_date_str = r.get("recorded_date", "")
+            try:
+                dt = datetime.strptime(r_date_str, "%Y-%m-%d")
+                d_name = day_names_es[dt.weekday()]
+            except Exception:
+                d_name = "Día"
+
+            m = DailyMetrics(
+                sleep_hours=float(r["sleep_hours"]) if r.get("sleep_hours") else None,
+                resting_hr=float(r["resting_hr"]) if r.get("resting_hr") else None,
+                hrv_ms=float(r["hrv_ms"]) if r.get("hrv_ms") else None
+            )
+            pillar_eval = self.engine.evaluate_daily_pillars(m, profile)
+
+            weekly_calendar.append({
+                "date": r_date_str,
+                "day_name": d_name,
+                "overall_score": pillar_eval["overall_score"],
+                "traffic_light": pillar_eval["overall_traffic_light"],
+                "ans_state": pillar_eval["ans_state"],
+                "pillars": pillar_eval["pillars"],
+                "worst_aspect": pillar_eval["worst_aspect"]
+            })
 
         trends = {
             "dates": [r.get("recorded_date", "") for r in chronological],
@@ -204,6 +235,14 @@ class BioCoachService:
             "sleep": [float(r.get("sleep_hours") or 0.0) for r in chronological]
         }
 
+        # Calculate today's pillar analysis for detailed gauge breakdown
+        today_metrics = DailyMetrics(
+            sleep_hours=float(latest["sleep_hours"]) if latest.get("sleep_hours") else None,
+            resting_hr=float(latest["resting_hr"]) if latest.get("resting_hr") else None,
+            hrv_ms=float(latest["hrv_ms"]) if latest.get("hrv_ms") else None
+        )
+        today_pillars = self.engine.evaluate_daily_pillars(today_metrics, profile)
+
         today_data = {
             "date": latest.get("recorded_date"),
             "score": latest.get("recovery_score", 50),
@@ -211,7 +250,9 @@ class BioCoachService:
             "hrv": latest.get("hrv_ms"),
             "rhr": latest.get("resting_hr"),
             "sleep": latest.get("sleep_hours"),
-            "verdict": latest.get("gemini_verdict", "")
+            "verdict": latest.get("gemini_verdict", ""),
+            "pillars": today_pillars["pillars"],
+            "worst_aspect": today_pillars["worst_aspect"]
         }
 
         return {
@@ -219,6 +260,7 @@ class BioCoachService:
             "is_day_one": False,
             "today": today_data,
             "trends": trends,
+            "weekly_calendar": weekly_calendar,
             "recent_workouts": [
                 {
                     "type": w.get("workout_type", "entreno"),
@@ -274,6 +316,51 @@ Responde de manera empática, científica y accionable. Relaciona tus consejos d
         return {
             "status": "success",
             "reply": reply.strip()
+        }
+
+    def calculate_nutrition_plan(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Calculates metabolic target, BMR, TDEE and macros using MetabolismEngine."""
+        from backend.metabolism import MetabolismEngine, UserProfile
+        engine = MetabolismEngine()
+
+        weight = float(data.get("weight_kg", 75.0))
+        height = float(data.get("height_cm", 175.0))
+        age = int(data.get("age", 25))
+        gender = str(data.get("gender", "male")).strip().lower()
+        activity = str(data.get("activity_level", "moderate")).strip().lower()
+        goal = str(data.get("goal", "maintain")).strip().lower()
+
+        # Check if Apple Watch logged active calories today
+        apple_watch_kcal = None
+        workouts = self._fetch_recent_workouts(limit=1)
+        if workouts and workouts[0].get("created_at", "").startswith(date.today().isoformat()):
+            apple_watch_kcal = workouts[0].get("active_calories")
+
+        profile = UserProfile(
+            weight_kg=weight,
+            height_cm=height,
+            age=age,
+            gender=gender,
+            activity_level=activity,
+            goal=goal
+        )
+
+        plan = engine.calculate_plan(profile, apple_watch_active_kcal=apple_watch_kcal)
+
+        return {
+            "status": "success",
+            "bmr": plan.bmr,
+            "tdee": plan.tdee,
+            "target_calories": plan.target_calories,
+            "goal": goal,
+            "goal_offset": plan.goal_adjustment,
+            "active_calories_source": plan.active_calories_source,
+            "macros": {
+                "protein_g": plan.protein_g,
+                "carbs_g": plan.carbs_g,
+                "fat_g": plan.fat_g
+            },
+            "summary": plan.summary
         }
 
     # --------------------------------------------------------------------------

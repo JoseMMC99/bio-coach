@@ -85,6 +85,29 @@ class TestBioCoachAPIHandler(unittest.TestCase):
         self.assertEqual(status_code, 422)
         self.assertIn("validation_error", body)
 
+    def test_metabolism_endpoint_success(self):
+        """POST /api/v1/metabolism returns nutrition and macro plan."""
+        self.mock_service.calculate_nutrition_plan.return_value = {
+            "status": "success",
+            "bmr": 1750,
+            "tdee": 2450,
+            "target_calories": 2150,
+            "goal": "cut",
+            "macros": {"protein_g": 160, "carbs_g": 210, "fat_g": 65}
+        }
+        payload = {
+            "weight_kg": 75,
+            "height_cm": 175,
+            "age": 26,
+            "gender": "male",
+            "activity_level": "moderate",
+            "goal": "cut"
+        }
+        status_code, body = self.api.handle_request("POST", "/api/v1/metabolism", payload)
+        self.assertEqual(status_code, 200)
+        self.assertEqual(body["status"], "success")
+        self.assertEqual(body["target_calories"], 2150)
+
     def test_route_not_found_returns_404(self):
         """Unknown route returns 404 Not Found."""
         status_code, body = self.api.handle_request("POST", "/api/v1/non_existent", {})

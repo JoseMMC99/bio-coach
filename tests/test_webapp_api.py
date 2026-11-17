@@ -16,7 +16,7 @@ class TestWebAppAPI(unittest.TestCase):
         self.api = BioCoachAPIHandler(service=self.mock_service)
 
     def test_dashboard_endpoint_with_history(self):
-        """GET /api/v1/dashboard returns consolidated metrics and 7-day trends."""
+        """GET /api/v1/dashboard returns consolidated metrics, pillars, and 7-day trends."""
         self.mock_service.get_dashboard_summary.return_value = {
             "status": "success",
             "today": {
@@ -24,7 +24,13 @@ class TestWebAppAPI(unittest.TestCase):
                 "traffic_light": "GREEN",
                 "hrv": 62.0,
                 "rhr": 52.0,
-                "sleep": 7.8
+                "sleep": 7.8,
+                "pillars": {
+                    "hrv": {"status": "GREEN", "score": 88},
+                    "rhr": {"status": "GREEN", "score": 85},
+                    "sleep": {"status": "GREEN", "score": 90}
+                },
+                "worst_aspect": {"pillar": "HRV", "severity": "NONE", "detail": "Todo en orden"}
             },
             "trends": {
                 "dates": ["2026-11-14", "2026-11-15", "2026-11-16"],
@@ -32,6 +38,15 @@ class TestWebAppAPI(unittest.TestCase):
                 "rhr": [54.0, 53.0, 52.0],
                 "sleep": [7.0, 7.5, 7.8]
             },
+            "weekly_calendar": [
+                {
+                    "date": "2026-11-16",
+                    "day_name": "Lun",
+                    "overall_score": 85,
+                    "traffic_light": "GREEN",
+                    "worst_aspect": {"pillar": "HRV", "severity": "NONE"}
+                }
+            ],
             "recent_workouts": [
                 {"type": "fuerza", "duration": 52, "calories": 420, "strain": 13.8}
             ]
@@ -41,7 +56,9 @@ class TestWebAppAPI(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body["status"], "success")
         self.assertEqual(body["today"]["score"], 85)
-        self.assertEqual(len(body["trends"]["dates"]), 3)
+        self.assertIn("pillars", body["today"])
+        self.assertIn("worst_aspect", body["today"])
+        self.assertEqual(len(body["weekly_calendar"]), 1)
 
     def test_dashboard_endpoint_empty_db_day_one(self):
         """GET /api/v1/dashboard handles empty day-1 database gracefully."""
