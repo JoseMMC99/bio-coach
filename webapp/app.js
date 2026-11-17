@@ -191,19 +191,50 @@ function updateSecretDotUI() {
   const vaultStatusLabel = document.getElementById('vault-status-label');
   if (vaultStatusLabel) {
     if (athleteKey) {
-      vaultStatusLabel.textContent = `Privado (${athleteKey})`;
-      vaultStatusLabel.className = 'text-emerald-400 font-bold';
+      vaultStatusLabel.textContent = athleteKey;
+      vaultStatusLabel.className = 'text-emerald-400 font-bold max-w-[85px] sm:max-w-none truncate';
       if (vaultStatusDot) {
-        vaultStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+        vaultStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0';
       }
     } else {
-      vaultStatusLabel.textContent = 'Modo Demo (PIN)';
-      vaultStatusLabel.className = 'text-amber-400 font-bold';
+      vaultStatusLabel.textContent = 'Modo Demo';
+      vaultStatusLabel.className = 'text-amber-400 font-bold max-w-[85px] sm:max-w-none truncate';
       if (vaultStatusDot) {
-        vaultStatusDot.className = 'w-2 h-2 rounded-full bg-amber-400';
+        vaultStatusDot.className = 'w-2 h-2 rounded-full bg-amber-400 shrink-0';
       }
     }
   }
+}
+
+// Global Non-intrusive Toast Notification
+function showToast(message, type = 'info') {
+  const toast = document.getElementById('toast-notification');
+  const toastMsg = document.getElementById('toast-message');
+  const toastIcon = document.getElementById('toast-icon');
+  if (!toast || !toastMsg) return;
+
+  const icons = {
+    success: '✅',
+    info: 'ℹ️',
+    warning: '⚠️',
+    error: '❌'
+  };
+
+  const borders = {
+    success: 'border-emerald-500/40 bg-emerald-950/90 text-emerald-200',
+    info: 'border-cyan-500/40 bg-slate-900/95 text-cyan-200',
+    warning: 'border-amber-500/40 bg-amber-950/90 text-amber-200',
+    error: 'border-rose-500/40 bg-rose-950/90 text-rose-200'
+  };
+
+  if (toastIcon) toastIcon.textContent = icons[type] || 'ℹ️';
+  toastMsg.textContent = message;
+  toast.className = `fixed top-16 left-1/2 -translate-x-1/2 z-50 glass-card px-4 py-2.5 rounded-2xl border ${borders[type] || borders.info} text-xs font-bold shadow-2xl flex items-center gap-2 transition-all duration-300 opacity-100 translate-y-0 max-w-[90vw]`;
+
+  if (window.toastTimeout) clearTimeout(window.toastTimeout);
+  window.toastTimeout = setTimeout(() => {
+    toast.className = 'fixed top-16 left-1/2 -translate-x-1/2 z-50 glass-card px-4 py-2.5 rounded-2xl border border-cyan-500/30 text-xs font-bold shadow-2xl flex items-center gap-2 transition-all duration-300 opacity-0 pointer-events-none translate-y-[-10px] max-w-[90vw] text-center';
+  }, 3500);
 }
 
 function initDiscreetVaultAccess() {
@@ -1282,52 +1313,59 @@ function initManualSync() {
     btnHeaderSync.addEventListener('click', async () => {
       const athleteKey = getAthleteKey();
       if (!athleteKey) {
-        if (confirm('ℹ️ Tu WebApp está en Modo Demostración de portafolio.\n\nPara ver los datos reales enviados por tu Apple Watch, debes ingresar tu PIN de atleta.\n\n¿Deseas ingresar tu PIN ahora?')) {
-          const pinModal = document.getElementById('secret-pin-modal');
-          if (pinModal) {
-            updateSecretDotUI();
-            pinModal.classList.remove('hidden');
-            document.getElementById('input-secret-pin')?.focus();
-          }
+        showToast('Modo Demostración activo. Abre PIN para tus datos privados.', 'info');
+        const pinModal = document.getElementById('secret-pin-modal');
+        if (pinModal) {
+          updateSecretDotUI();
+          pinModal.classList.remove('hidden');
+          document.getElementById('input-secret-pin')?.focus();
         }
         return;
       }
 
       const origText = btnHeaderSync.innerHTML;
-      btnHeaderSync.innerHTML = '<span>⏳</span> Consultando...';
+      btnHeaderSync.innerHTML = '<span class="text-xs animate-spin">⏳</span><span class="hidden sm:inline"> Consultando...</span>';
       try {
         await initDashboard();
-        btnHeaderSync.innerHTML = '<span>✅</span> Al día';
-        setTimeout(() => { btnHeaderSync.innerHTML = origText; }, 2000);
+        const currentData = window.currentDashboardData;
+        if (currentData && currentData.today) {
+          showToast(`Sincronizado: Hoy ${currentData.today.score}% | VFC: ${currentData.today.hrv || '--'}ms | Sueño: ${currentData.today.sleep || '--'}h`, 'success');
+        } else {
+          showToast(`Conectado a Supabase (PIN ${athleteKey}). Sin registros hoy aún.`, 'info');
+        }
+        btnHeaderSync.innerHTML = '<span class="text-xs">✅</span><span class="hidden sm:inline"> Al día</span>';
+        setTimeout(() => { btnHeaderSync.innerHTML = origText; }, 2500);
       } catch (e) {
         btnHeaderSync.innerHTML = origText;
-        openModal();
+        showToast('Error al conectar con la nube: ' + e.message, 'error');
       }
     });
   }
 
-  // 1-Click Apple Watch Trigger via iOS Shortcut Scheme
-  if (btnRunShortcut) {
-    btnRunShortcut.addEventListener('click', () => {
-      window.location.href = 'shortcuts://run-shortcut?name=Recuperaci%C3%B3n%20Matutina';
-      // Auto-refresh when user returns from Shortcuts app
-      const onFocus = async () => {
-        window.removeEventListener('focus', onFocus);
-        await initDashboard();
-      };
-      window.addEventListener('focus', onFocus);
-      setTimeout(() => {
-        closeModal();
-      }, 1500);
-    });
-  }
+  // 1-Click Apple Watch Trigger via iOS Shortcut Scheme (Banner & Modal)
+  const triggerShortcut = () => {
+    window.location.href = 'shortcuts://run-shortcut?name=Recuperaci%C3%B3n%20Matutina';
+    showToast('Abriendo atajo en iPhone...', 'info');
+    const onFocus = async () => {
+      window.removeEventListener('focus', onFocus);
+      await initDashboard();
+    };
+    window.addEventListener('focus', onFocus);
+    setTimeout(() => {
+      closeModal();
+    }, 1500);
+  };
+
+  const btnBannerShortcut = document.getElementById('btn-banner-run-shortcut');
+  if (btnBannerShortcut) btnBannerShortcut.addEventListener('click', triggerShortcut);
+  if (btnRunShortcut) btnRunShortcut.addEventListener('click', triggerShortcut);
 
   // Cloud Sync / Re-organize Telemetry from Supabase
   if (btnFetchCloud) {
     btnFetchCloud.addEventListener('click', async () => {
       const athleteKey = getAthleteKey();
       if (!athleteKey) {
-        alert('ℹ️ Tu WebApp está en Modo Demostración de portafolio.\n\nPara ver tus mediciones privadas de Apple Watch, ingresa tu PIN de atleta (o usa "atleta_privado").');
+        showToast('Modo Demostración activo. Ingresa tu PIN de atleta.', 'warning');
         closeModal();
         const pinModal = document.getElementById('secret-pin-modal');
         if (pinModal) {
@@ -1344,12 +1382,12 @@ function initManualSync() {
         closeModal();
         const currentData = window.currentDashboardData;
         if (currentData && currentData.today) {
-          alert(`✅ ¡Telemetría organizada con éxito!\n\nScore: ${currentData.today.score}%\nVFC: ${currentData.today.hrv || '--'} ms\nFC Reposo: ${currentData.today.rhr || '--'} bpm\nSueño: ${currentData.today.sleep || '--'} h\nBóveda: ${athleteKey}`);
+          showToast(`¡Telemetría sincronizada! Score: ${currentData.today.score}% | VFC: ${currentData.today.hrv || '--'}ms | FC: ${currentData.today.rhr || '--'}bpm`, 'success');
         } else {
-          alert(`ℹ️ Conectado a Supabase con PIN "${athleteKey}".\n\nAún no hay mediciones registradas hoy. Ejecuta el atajo en tu iPhone o usa el botón "Organizar y Confirmar Telemetría" abajo para enviar una lectura.`);
+          showToast(`Conectado con PIN "${athleteKey}". Aún no hay mediciones de hoy en Supabase.`, 'info');
         }
       } catch (err) {
-        alert('Error al consultar la nube: ' + err.message);
+        showToast('Error al consultar la nube: ' + err.message, 'error');
       } finally {
         btnFetchCloud.innerHTML = '<span>🔄</span> Consultar y Organizar Datos de la Nube';
       }
@@ -1410,9 +1448,9 @@ function initManualSync() {
 
         closeModal();
         await initDashboard();
-        alert(`✅ ¡Telemetría registrada y guardada en Supabase!\n\nScore: ${evalRes.score}%\nSueño: ${sleepHours}h | VFC: ${hrvVal}ms | FC: ${rhrVal}lpm\nBóveda: ${athleteKey}`);
+        showToast(`¡Telemetría guardada en Supabase! Score: ${evalRes.score}% | Sueño: ${sleepHours}h | VFC: ${hrvVal}ms`, 'success');
       } catch (err) {
-        alert('Error al sincronizar: ' + err.message);
+        showToast('Error al sincronizar: ' + err.message, 'error');
       } finally {
         submitBtn.textContent = '✅ Organizar y Confirmar Telemetría (1-Clic)';
         submitBtn.disabled = false;
