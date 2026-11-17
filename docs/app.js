@@ -664,16 +664,28 @@ function processBiometricHistory(history, workouts) {
     fullCalendar.push({
       date: r.recorded_date,
       day_name: dayName,
-      sleep: Number(r.sleep_hours),
-      deep_sleep: r.deep_sleep_hours,
-      rem_sleep: r.rem_sleep_hours,
-      hrv: Number(r.hrv_ms),
-      rhr: Number(r.resting_hr),
-      resp: r.respiratory_rate,
+      sleep: r.sleep_hours != null ? Number(r.sleep_hours) : null,
+      deep_sleep: r.deep_sleep_hours != null ? Number(r.deep_sleep_hours) : null,
+      rem_sleep: r.rem_sleep_hours != null ? Number(r.rem_sleep_hours) : null,
+      core_sleep: r.core_sleep_hours != null ? Number(r.core_sleep_hours) : null,
+      awake_sleep: r.awake_sleep_hours != null ? Number(r.awake_sleep_hours) : null,
+      hrv: r.hrv_ms != null ? Number(r.hrv_ms) : null,
+      rhr: r.resting_hr != null ? Number(r.resting_hr) : null,
+      avg_hr: r.avg_hr != null ? Number(r.avg_hr) : null,
+      max_hr: r.max_hr != null ? Number(r.max_hr) : null,
+      walking_hr_avg: r.walking_hr_avg != null ? Number(r.walking_hr_avg) : null,
+      resp: r.respiratory_rate != null ? Number(r.respiratory_rate) : null,
+      spo2_pct: r.spo2_pct != null ? (Number(r.spo2_pct) <= 1.5 ? Number((Number(r.spo2_pct) * 100).toFixed(1)) : Number(r.spo2_pct)) : null,
+      breathing_disturbances: r.breathing_disturbances != null ? Number(r.breathing_disturbances) : null,
       temp_c: toCelsius(r.wrist_temp_deviation),
       basal_calories: r.basal_calories != null ? Number(r.basal_calories) : null,
       active_calories: r.active_calories != null ? Number(r.active_calories) : null,
       steps: r.steps != null ? Number(r.steps) : null,
+      exercise_minutes: r.exercise_minutes != null ? Number(r.exercise_minutes) : null,
+      distance_km: r.distance_km != null ? Number(r.distance_km) : null,
+      daylight_minutes: r.daylight_minutes != null ? Number(r.daylight_minutes) : null,
+      audio_exposure_db: r.audio_exposure_db != null ? Number(r.audio_exposure_db) : null,
+      extra_metrics: r.extra_metrics || {},
       overall_score: evalPillars.score,
       traffic_light: evalPillars.trafficLight,
       pillars: evalPillars.pillars,
@@ -2143,21 +2155,29 @@ function initChat() {
     }
   });
 
+  function formatSafeChatText(raw) {
+    const escaped = String(raw || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    return escaped.replace(/\*\*(.+?)\*\*/g, '<strong class="text-white font-bold">$1</strong>');
+  }
+
   function appendMessage(sender, text) {
     if (!thread) return;
     const msg = document.createElement('div');
     msg.className = 'flex items-start gap-3';
     if (sender === 'user') {
       msg.innerHTML = `
-        <div class="ml-auto glass-card bg-cyan-500/10 border border-cyan-500/20 p-4 rounded-3xl rounded-tr-sm text-xs sm:text-sm leading-relaxed max-w-[85%] text-white">
-          ${text}
+        <div class="ml-auto glass-card bg-cyan-500/10 border border-cyan-500/20 p-4 rounded-3xl rounded-tr-sm text-xs sm:text-sm leading-relaxed max-w-[85%] text-white whitespace-pre-line">
+          ${formatSafeChatText(text)}
         </div>
       `;
     } else {
       msg.innerHTML = `
         <div class="w-8 h-8 rounded-2xl bg-violet-600 flex items-center justify-center text-xs font-bold shrink-0 shadow-lg shadow-violet-500/20">AI</div>
-        <div class="glass-card p-4 rounded-3xl rounded-tl-sm text-xs sm:text-sm leading-relaxed max-w-[85%] text-slate-200 border border-white/5">
-          ${text}
+        <div class="glass-card p-4 rounded-3xl rounded-tl-sm text-xs sm:text-sm leading-relaxed max-w-[85%] text-slate-200 border border-white/5 whitespace-pre-line">
+          ${formatSafeChatText(text)}
         </div>
       `;
     }
@@ -2218,28 +2238,155 @@ function buildFullBiometricContext(t) {
   return lines.join('\n');
 }
 
-// Queries Google Gemini AI API directly with clinical sports coach persona
+// Intent-Aware Context Router for Chat: injects ONLY the exact timeframe & metrics relevant to the user's question
+function buildFocusedChatContext(userQuestion, data) {
+  if (!data || !data.today) return "";
+  const q = (userQuestion || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const fullCal = data.full_calendar || data.weekly_calendar || [];
+  const t = data.today;
+
+  // 1. Detect requested timeframe
+  let days = 7;
+  let timeframeLabel = "últimos 7 días";
+  const explicitMatch = q.match(/(\d+)\s*(dias|dia|noches|noche)/);
+  if (explicitMatch) {
+    days = Math.min(30, Math.max(1, parseInt(explicitMatch[1], 10)));
+    timeframeLabel = `últimos ${days} días`;
+  } else if (/\b(mes|30|treinta|historial completo|todo el historial)\b/.test(q)) {
+    days = 30;
+    timeframeLabel = "últimos 30 días";
+  } else if (/\b(quincena|15|quince|dos semanas)\b/.test(q)) {
+    days = 15;
+    timeframeLabel = "últimos 15 días";
+  } else if (/\b(ayer)\b/.test(q)) {
+    days = 2;
+    timeframeLabel = "ayer y hoy";
+  } else if (/\b(hoy)\b/.test(q) && !/\b(semana|dias)\b/.test(q)) {
+    days = 1;
+    timeframeLabel = "hoy";
+  }
+
+  const slice = fullCal.slice(-days);
+
+  // 2. Detect specific topic(s) asked by the user
+  const askSleep = /(sueno|dorm|descans|rem|profund|despert|siesta|insomnio|noche|madrugada)/.test(q);
+  const askCardio = /(hrv|vfc|pulso|corazon|latid|reposo|estres|recupera|hipertens|presion|tension|cardio)/.test(q);
+  const askImmune = /(gripa|gripe|fiebre|enferm|respir|apnea|oxigeno|spo2|temperatura|temp|inmune|virus|infecc)/.test(q);
+  const askExercise = /(pasos|camin|ejercici|entren|correr|bici|vo2|escaler|marcha|esfuerzo|distancia|gym|pesas|movilidad|actividad)/.test(q);
+  const askNutrition = /(calor|comid|comi|diet|macro|protein|carbo|grasa|peso|deficit|volumen|bajar|subir|hambre|tdee|bmr|nutric)/.test(q);
+  const askAlerts = /(alerta|peligro|cuidado|riesgo|anomal|importante|evento|chequeo|resumen general)/.test(q);
+
+  const hasSpecificTopic = askSleep || askCardio || askImmune || askExercise || askNutrition || askAlerts;
+  const sections = [`FECHA ACTUAL: ${t.date} | VENTANA SOLICITADA: ${timeframeLabel} (${slice.length} registros)`];
+
+  if (askSleep) {
+    const sleepRows = slice.map(d =>
+      `  ${d.date} (${d.day_name}): Total ${d.sleep != null ? d.sleep.toFixed(2) : '--'}h | Profundo ${d.deep_sleep != null ? d.deep_sleep.toFixed(2) : '--'}h | REM ${d.rem_sleep != null ? d.rem_sleep.toFixed(2) : '--'}h | Core ${d.core_sleep != null ? d.core_sleep.toFixed(2) : '--'}h | Despierto ${d.awake_sleep != null ? d.awake_sleep.toFixed(2) : '--'}h`
+    ).join('\n');
+    sections.push(`DATOS DE SUEÑO (${timeframeLabel} | media 30d: ${t.base_sleep != null ? t.base_sleep.toFixed(2) : '--'}h):\n${sleepRows}`);
+  }
+
+  if (askCardio) {
+    const cardioRows = slice.map(d =>
+      `  ${d.date}: VFC ${d.hrv != null ? Math.round(d.hrv) : '--'}ms | FC Reposo ${d.rhr != null ? Math.round(d.rhr) : '--'}lpm | FC Prom ${d.avg_hr != null ? Math.round(d.avg_hr) : '--'} | Máx ${d.max_hr != null ? Math.round(d.max_hr) : '--'} | Score ${d.overall_score}%`
+    ).join('\n');
+    sections.push(`DATOS CARDIOVASCULARES (base 30d: VFC ${t.base_hrv?.toFixed(1) ?? '--'}ms, FC Reposo ${t.base_rhr?.toFixed(1) ?? '--'}lpm):\n${cardioRows}`);
+    const hrChecks = data.hr_checkins || [];
+    if (hrChecks.length > 0) {
+      sections.push(`CHEQUEOS CARDÍACOS RECIENTES: ${hrChecks.slice(0, 3).map(h => `${h.current_hr} lpm (${h.user_sensation || 'rutina'}, ${(h.created_at || '').slice(0, 10)})`).join(' | ')}`);
+    }
+    const hypAlerts = (data.clinical_alerts || []).filter(a => a.category === 'hypertension');
+    if (hypAlerts.length > 0) {
+      sections.push(`ALERTAS DE HIPERTENSIÓN: ${hypAlerts.map(a => `${a.date}: ${a.title}`).join(' | ')}`);
+    }
+  }
+
+  if (askImmune) {
+    const immRows = slice.map(d =>
+      `  ${d.date}: Temp ${d.temp_c != null ? d.temp_c.toFixed(2) : '--'}°C | Resp ${d.resp != null ? d.resp.toFixed(1) : '--'} rpm | SpO2 ${d.spo2_pct != null ? d.spo2_pct.toFixed(1) : '--'}% | Alt.Resp ${d.breathing_disturbances != null ? d.breathing_disturbances.toFixed(1) : '--'}/h`
+    ).join('\n');
+    sections.push(`DATOS RESPIRATORIOS E INMUNES (base 30d: Temp ${t.base_temp?.toFixed(2) ?? '--'}°C, Resp ${t.base_resp?.toFixed(1) ?? '--'} rpm, SpO2 ${t.base_spo2?.toFixed(1) ?? '--'}%, Alt.Resp ${t.base_breath_dist?.toFixed(1) ?? '--'}/h):\n${immRows}`);
+    const respAlerts = (data.clinical_alerts || []).filter(a => ['apnea', 'temperature', 'spo2'].includes(a.category));
+    if (respAlerts.length > 0) {
+      sections.push(`ALERTAS RESPIRATORIAS/TEMP: ${respAlerts.slice(0, 5).map(a => `${a.date}: ${a.title}`).join(' | ')}`);
+    }
+  }
+
+  if (askExercise) {
+    const exRows = slice.map(d => {
+      const ex = d.extra_metrics || {};
+      return `  ${d.date}: Pasos ${d.steps ?? '--'} | Cal Activas ${d.active_calories ?? '--'} kcal | Ejerc ${d.exercise_minutes ?? '--'} min | Dist ${d.distance_km ?? '--'} km | FC Cam ${d.walking_hr_avg != null ? Math.round(d.walking_hr_avg) : '--'} | Vel ${ex.walking_speed_kmh ?? '--'} km/h`;
+    }).join('\n');
+    sections.push(`DATOS DE EJERCICIO Y MOVILIDAD (VO2Max: ${t.vo2_max ?? '--'}, Estabilidad: ${t.extra_metrics?.walking_steadiness_pct ?? '--'}%, Test 6min: ${t.extra_metrics?.six_min_walk_m ?? '--'}m):\n${exRows}`);
+    if ((data.recent_workouts || []).length > 0) {
+      sections.push(`ENTRENOS REGISTRADOS: ${data.recent_workouts.slice(0, 5).map(w => `${w.date} ${w.type} ${w.duration}m ${w.calories}kcal`).join(' | ')}`);
+    }
+  }
+
+  if (askNutrition) {
+    const ns = window.currentNutritionState || {};
+    const calRows = slice.map(d => {
+      const tot = (d.basal_calories != null && d.active_calories != null) ? Math.round(d.basal_calories + d.active_calories) : '--';
+      return `  ${d.date}: Gasto Watch ${tot} kcal (Basal ${d.basal_calories ?? '--'} + Activo ${d.active_calories ?? '--'})`;
+    }).join('\n');
+    sections.push(`PERFIL NUTRICIONAL: Peso ${t.body_mass_kg ?? ns.weight ?? '--'} kg | Objetivo: ${ns.goal || 'maintain'} (${ns.goalOffset || 0} kcal) | Meta diaria: ${ns.targetKcal || '--'} kcal (P:${ns.macros?.protein || '--'}g C:${ns.macros?.carbs || '--'}g G:${ns.macros?.fat || '--'}g) | Consumido hoy: ${ns.consumedToday || 0} kcal\nGASTO DIARIO:\n${calRows}`);
+    const meals = data.nutrition_logs || [];
+    if (meals.length > 0) {
+      sections.push(`COMIDAS REGISTRADAS: ${meals.slice(0, 6).map(m => `${m.logged_date || ''} ${m.meal_type || ''}: "${m.raw_text}" (${m.estimated_calories || '--'} kcal)`).join(' | ')}`);
+    }
+  }
+
+  if (askAlerts) {
+    const al = data.clinical_alerts || [];
+    sections.push(al.length > 0
+      ? `ALERTAS CLÍNICAS (últimos 30 días):\n${al.map(a => `  ${a.date} [${a.categoryLabel}]: ${a.title} — ${a.detail}`).join('\n')}`
+      : 'ALERTAS CLÍNICAS: Ninguna alerta crítica en los últimos 30 días.'
+    );
+  }
+
+  // Only if question is broad/general (no specific domain detected), send concise Today core summary
+  if (!hasSpecificTopic) {
+    sections.push(`RESUMEN CONCISO DE HOY (${t.date}): Recuperación ${t.score}% | Sueño ${t.sleep ?? '--'}h (base ${t.base_sleep?.toFixed(1) ?? '--'}h) | VFC ${t.hrv ?? '--'}ms (base ${t.base_hrv?.toFixed(0) ?? '--'}ms) | FC Reposo ${t.rhr ?? '--'}lpm (base ${t.base_rhr?.toFixed(0) ?? '--'}lpm) | Temp ${t.wrist_temp_deviation ?? '--'}°C | Pasos ${t.steps ?? '--'}.`);
+  }
+
+  return sections.join('\n\n');
+}
+
+// Queries Google Gemini AI API directly with focused intent-routed context & short session memory
 async function queryGeminiDirectly(userQuestion, apiKey) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${apiKey}`;
-  
-  const contextStr = window.currentDashboardData?.today
-    ? `\nTELEMETRÍA COMPLETA DEL ATLETA:\n${buildFullBiometricContext(window.currentDashboardData.today)}\n`
-    : "";
-  const prompt = `Actúa como BioCoach AI, un fisiólogo deportivo y médico preventivo de élite. Responde de forma concisa (máximo 3 párrafos), clara y con base científica en español a esta consulta del atleta:${contextStr}\nIMPORTANTE: Analiza TODAS las variables relevantes (sueño profundo/REM, SpO2, alteraciones respiratorias/apnea, temperatura de muñeca, respiración, HRV, FC reposo, hipertensión, pasos/calorías y movilidad) comparando contra su media de 30 días. Si hay señales de posible gripa/infección, apnea, fatiga o anomalía, señálalo explícitamente con claridad.\nPregunta: "${userQuestion}"`;
 
-  const payload = {
-    contents: [{ parts: [{ text: prompt }] }]
-  };
+  if (!window.chatHistory) window.chatHistory = [];
+
+  const focusedContext = buildFocusedChatContext(userQuestion, window.currentDashboardData);
+  const recentTurns = window.chatHistory.slice(-4).map(h => `${h.role === 'user' ? 'Atleta' : 'BioCoach'}: ${h.text}`).join('\n');
+
+  const prompt = `Eres BioCoach AI, fisiólogo deportivo y coach de salud personal.
+REGLAS ESTRICTAS:
+1. Responde ÚNICAMENTE y con precisión a la pregunta concreta del atleta usando los datos exactos provistos abajo.
+2. PROHIBIDO hacer un resumen general de toda su salud o mencionar métricas que NO se pidieron (ejemplo: si pregunta cómo durmió los últimos 7 días, responde SOLO sobre su sueño día por día con fechas/horas reales y patrón; NO hables de pasos, ruido, hipertensión ni otros temas).
+3. Responde en español, directo, claro y natural (máximo 2-3 párrafos cortos o viñetas concisas).
+
+DATOS RELEVANTES PARA ESTA PREGUNTA:
+${focusedContext || 'Sin datos biométricos cargados aún.'}
+${recentTurns ? `\nCONVERSACIÓN PREVIA:\n${recentTurns}\n` : ''}
+PREGUNTA ACTUAL DEL ATLETA: "${userQuestion}"`;
 
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
   });
 
   if (!res.ok) throw new Error("Gemini API error " + res.status);
   const data = await res.json();
-  return data.candidates[0].content.parts[0].text;
+  const reply = data.candidates[0].content.parts[0].text;
+
+  window.chatHistory.push({ role: 'user', text: userQuestion });
+  window.chatHistory.push({ role: 'ai', text: reply });
+  if (window.chatHistory.length > 8) window.chatHistory = window.chatHistory.slice(-8);
+
+  return reply;
 }
 
 // Automatically generates a real daily Gemini clinical briefing ("Hay que ponerle cuidado a X o Y")
