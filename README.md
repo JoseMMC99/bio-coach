@@ -46,10 +46,12 @@ flowchart TD
   - [x] Diseño relacional para series temporales (`daily_recovery`, `workouts`, `nutrition_logs`, `hr_checkins`).
   - [x] Políticas de seguridad Row Level Security (RLS).
   - [x] Estructura base del repositorio y aislamiento de credenciales.
-- [ ] **Fase 2: Motor de Cálculo Fisiológico y Orquestador de Gemini**
-  - [ ] Algoritmo de media móvil para VFC (HRV) y frecuencia en reposo.
-  - [ ] Cálculo de deuda de sueño y ratio de fatiga aguda/crónica.
-  - [ ] Integración con la API de Gemini mediante prompts estructurados.
+- [x] **Fase 2: Motor de Cálculo Fisiológico y Orquestador de Gemini**
+  - [x] Algoritmo de media móvil para VFC (HRV) y frecuencia en reposo.
+  - [x] Cálculo de deuda de sueño y ratio de fatiga aguda/crónica.
+  - [x] Integración con la API de Gemini mediante prompts estructurados y fallbacks locales.
+  - [x] Capa de servicio e integración con Supabase PostgREST.
+  - [x] Suite completa de 19 tests unitarios y de integración con cobertura de casos límite (TDD).
 - [ ] **Fase 3: Atajos de iOS Automatizados**
   - [ ] Atajo de recuperación matutina (disparo al apagar alarma/sueño).
   - [ ] Atajo post-entrenamiento con cálculo de zonas de pulso.
@@ -93,6 +95,9 @@ cp .env.example .env
 
 # 4. Verificar conectividad
 python scripts/test_connection.py
+
+# 5. Ejecutar suite de pruebas unitarias y de integración
+python -m unittest discover -s tests -v
 ```
 
 ---
