@@ -1,0 +1,41 @@
+name: BioCoachNative
+options:
+  bundleIdPrefix: com.biocoach
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "16.0"
+
+targets:
+  BioCoachNative:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: BioCoachNative
+        excludes:
+          - "*.plist"
+          - "*.entitlements"
+    entitlements:
+      path: BioCoachNative/BioCoachNative.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+    info:
+      path: BioCoachNative/Info.plist
+      properties:
+        CFBundleDisplayName: BioCoach
+        CFBundleShortVersionString: "1.0.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        NSHealthShareUsageDescription: "BioCoach lee tu sueño, frecuencia cardíaca en reposo, VFC, respiración y temperatura de muñeca desde Apple Salud para evaluar tu recuperación."
+        NSHealthUpdateUsageDescription: "BioCoach solicita permiso de Apple Salud para gestionar tus métricas biométricas."
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.biocoach.native.poc
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGN_IDENTITY: ""

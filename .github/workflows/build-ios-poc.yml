@@ -1,0 +1,63 @@
+name: Build iOS Native PoC (.ipa)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/build-ios-poc.yml'
+  workflow_dispatch:
+
+jobs:
+  build-ipa:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show available Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Build BioCoachNative.app (iOS Release)
+        working-directory: ios
+        run: |
+          xcodebuild \
+            -project BioCoachNative.xcodeproj \
+            -scheme BioCoachNative \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Embed HealthKit entitlement via ad-hoc codesign and package .ipa
+        working-directory: ios
+        run: |
+          APP_PATH="build/Build/Products/Release-iphoneos/BioCoachNative.app"
+          codesign --force --sign - \
+            --entitlements BioCoachNative/BioCoachNative.entitlements \
+            "$APP_PATH"
+          echo "--- Verifying embedded entitlements ---"
+          codesign -d --entitlements :- "$APP_PATH"
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r BioCoachNative.ipa Payload
+          ls -lh BioCoachNative.ipa
+
+      - name: Upload BioCoachNative.ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BioCoachNative-iOS-PoC
+          path: ios/BioCoachNative.ipa
+          retention-days: 14
