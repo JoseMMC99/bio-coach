@@ -30,6 +30,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+#variable_conflict use_column
 DECLARE
   v_date DATE;
   v_athlete TEXT;
@@ -52,77 +53,70 @@ DECLARE
   v_audio NUMERIC(5,2);
   v_raw NUMERIC;
 BEGIN
-  -- 1. Resolve date (fallback to Colombia local date UTC-5)
-  v_date := COALESCE(NULLIF(TRIM(recorded_date), '')::DATE, (NOW() AT TIME ZONE 'America/Bogota')::DATE);
-  v_athlete := COALESCE(NULLIF(TRIM(athlete_id), ''), 'atleta_privado');
+  v_date := COALESCE(NULLIF(TRIM(sync_biocoach.recorded_date), '')::DATE, (NOW() AT TIME ZONE 'America/Bogota')::DATE);
+  v_athlete := COALESCE(NULLIF(TRIM(sync_biocoach.athlete_id), ''), 'atleta_privado');
 
-  -- Helper inline cleaning via regex (extracts first signed decimal, handles commas & units)
-  -- Sleep total (auto-converts seconds >1440 or minutes >24 to hours)
-  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sleep_hours, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
+  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.sleep_hours, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
   IF v_raw IS NOT NULL AND v_raw > 0 THEN
     v_sleep := CASE WHEN v_raw > 1440 THEN ROUND(v_raw / 3600.0, 2) WHEN v_raw > 24 THEN ROUND(v_raw / 60.0, 2) ELSE ROUND(v_raw, 2) END;
   END IF;
 
-  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(deep_sleep_hours, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
+  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.deep_sleep_hours, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
   IF v_raw IS NOT NULL AND v_raw > 0 THEN
     v_deep := CASE WHEN v_raw > 1440 THEN ROUND(v_raw / 3600.0, 2) WHEN v_raw > 24 THEN ROUND(v_raw / 60.0, 2) ELSE ROUND(v_raw, 2) END;
   END IF;
 
-  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(rem_sleep_hours, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
+  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.rem_sleep_hours, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
   IF v_raw IS NOT NULL AND v_raw > 0 THEN
     v_rem := CASE WHEN v_raw > 1440 THEN ROUND(v_raw / 3600.0, 2) WHEN v_raw > 24 THEN ROUND(v_raw / 60.0, 2) ELSE ROUND(v_raw, 2) END;
   END IF;
 
-  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(resting_hr, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
+  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.resting_hr, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
   IF v_raw IS NOT NULL AND v_raw > 0 AND v_raw < 250 THEN v_rhr := ROUND(v_raw, 2); END IF;
 
-  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(hrv_ms, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
+  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.hrv_ms, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
   IF v_raw IS NOT NULL AND v_raw > 0 AND v_raw < 500 THEN v_hrv := ROUND(v_raw, 2); END IF;
 
-  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(respiratory_rate, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
+  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.respiratory_rate, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
   IF v_raw IS NOT NULL AND v_raw > 0 AND v_raw < 99 THEN v_resp := ROUND(v_raw, 2); END IF;
 
-  -- SpO2 (auto-converts 0.95 -> 95.0)
-  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(spo2_pct, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
+  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.spo2_pct, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
   IF v_raw IS NOT NULL AND v_raw > 0 THEN
     v_spo2 := CASE WHEN v_raw <= 1.5 THEN ROUND(v_raw * 100.0, 1) ELSE ROUND(v_raw, 1) END;
   END IF;
 
-  -- Wrist Temperature (auto-converts Fahrenheit > 50 -> Celsius)
-  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(wrist_temp_deviation, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
+  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.wrist_temp_deviation, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
   IF v_raw IS NOT NULL AND v_raw > 0 THEN
     v_temp := CASE WHEN v_raw > 50 THEN ROUND((v_raw - 32.0) * 5.0 / 9.0, 2) ELSE ROUND(v_raw, 2) END;
   END IF;
 
-  -- Integer activity metrics
-  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(steps, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
+  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.steps, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
   IF v_raw IS NOT NULL AND v_raw > 0 THEN v_steps := ROUND(v_raw)::INT; END IF;
 
-  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(active_calories, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
+  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.active_calories, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
   IF v_raw IS NOT NULL AND v_raw > 0 THEN v_act_cal := ROUND(v_raw)::INT; END IF;
 
-  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(basal_calories, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
+  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.basal_calories, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
   IF v_raw IS NOT NULL AND v_raw > 0 THEN v_bas_cal := ROUND(v_raw)::INT; END IF;
 
-  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(exercise_minutes, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
+  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.exercise_minutes, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
   IF v_raw IS NOT NULL AND v_raw > 0 THEN v_ex_min := ROUND(v_raw)::INT; END IF;
 
-  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(distance_km, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
+  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.distance_km, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
   IF v_raw IS NOT NULL AND v_raw > 0 THEN v_dist := ROUND(v_raw, 2); END IF;
 
-  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(flights_climbed, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
+  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.flights_climbed, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
   IF v_raw IS NOT NULL AND v_raw > 0 THEN v_flights := ROUND(v_raw)::INT; END IF;
 
-  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(daylight_minutes, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
+  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.daylight_minutes, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
   IF v_raw IS NOT NULL AND v_raw > 0 THEN v_daylight := ROUND(v_raw)::INT; END IF;
 
-  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(walking_hr_avg, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
+  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.walking_hr_avg, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
   IF v_raw IS NOT NULL AND v_raw > 0 AND v_raw < 250 THEN v_walk_hr := ROUND(v_raw, 2); END IF;
 
-  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(audio_exposure_db, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
+  v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.audio_exposure_db, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
   IF v_raw IS NOT NULL AND v_raw > 0 AND v_raw < 200 THEN v_audio := ROUND(v_raw, 2); END IF;
 
-  -- Upsert merging ONLY non-null incoming fields so Vitales & Actividad never overwrite each other
   INSERT INTO daily_recovery (
     recorded_date, athlete_id, is_demo,
     sleep_hours, deep_sleep_hours, rem_sleep_hours,
