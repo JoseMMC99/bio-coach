@@ -59,9 +59,11 @@ flowchart TD
   - [x] Atajo de dictado por voz para nutrición.
   - [x] Validador de payloads y coerción de formatos regionales (comas decimales en iOS).
   - [x] Gateway HTTP API nativo con enrutamiento y manejo de errores.
-- [ ] **Fase 4: WebApp PWA**
-  - [ ] Dashboard interactivo de tendencias semanales y mensuales.
-  - [ ] Chat interactivo con el Coach (Gemini con memoria total en base de datos).
+- [x] **Fase 4: WebApp PWA**
+  - [x] Dashboard interactivo con score de recuperación, métricas clave y barras de tendencia semanal.
+  - [x] Super-Gem Coach Chat conectado a la base de datos de salud con inyección de contexto en tiempo real.
+  - [x] Manifiesto PWA (`manifest.json`) y Service Worker (`sw.js`) optimizado para pantalla completa en iOS.
+  - [x] Servidor integrado sin dependencias externas (`backend/api.py`).
 
 ---
 
@@ -100,6 +102,10 @@ python scripts/test_connection.py
 
 # 5. Ejecutar suite de pruebas unitarias y de integración
 python -m unittest discover -s tests -v
+
+# 6. Iniciar el servidor local y abrir la WebApp PWA
+python backend/api.py
+# Acceder desde el navegador: http://localhost:8080
 ```
 
 ---
