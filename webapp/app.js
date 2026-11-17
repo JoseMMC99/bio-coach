@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initNavigation();
   initDashboard();
   initChat();
+  initManualSync();
 });
 
 // 1. PWA Service Worker Registration
@@ -55,11 +56,17 @@ async function initDashboard() {
 
 function renderDashboard(data) {
   const today = data.today;
+  const banner = document.getElementById('empty-state-banner');
+
   if (!today) {
     document.getElementById('hero-score').textContent = '--';
     document.getElementById('hero-status-text').textContent = 'Esperando primer registro del Apple Watch';
+    if (banner) banner.classList.remove('hidden');
     return;
   }
+
+  // If data exists, hide empty state banner
+  if (banner) banner.classList.add('hidden');
 
   // Hero Score Card
   document.getElementById('hero-score').textContent = today.score || '--';
@@ -224,5 +231,81 @@ function initChat() {
     thread.appendChild(typing);
     thread.scrollTop = thread.scrollHeight;
     return typing;
+  }
+}
+
+// 5. Manual Sleep Sync and Shortcuts Triggering
+function initManualSync() {
+  const modal = document.getElementById('sync-modal');
+  const btnOpenModal = document.getElementById('btn-open-sync-modal');
+  const btnHeaderSync = document.getElementById('btn-header-sync');
+  const btnCloseModal = document.getElementById('btn-close-sync-modal');
+  const btnCancelSync = document.getElementById('btn-cancel-sync');
+  const btnRunShortcut = document.getElementById('btn-run-shortcut-ios');
+  const syncForm = document.getElementById('sync-form');
+  const submitBtn = document.getElementById('btn-submit-sync');
+
+  const openModal = () => modal.classList.remove('hidden');
+  const closeModal = () => modal.classList.add('hidden');
+
+  if (btnOpenModal) btnOpenModal.addEventListener('click', openModal);
+  if (btnHeaderSync) btnHeaderSync.addEventListener('click', openModal);
+  if (btnCloseModal) btnCloseModal.addEventListener('click', closeModal);
+  if (btnCancelSync) btnCancelSync.addEventListener('click', closeModal);
+
+  // Trigger Apple Shortcut on iOS Safari
+  if (btnRunShortcut) {
+    btnRunShortcut.addEventListener('click', () => {
+      // Shortcuts URL scheme native to iOS
+      window.location.href = 'shortcuts://run-shortcut?name=Recuperaci%C3%B3n%20Matutina';
+      setTimeout(() => {
+        alert('Si estás en tu iPhone, el atajo se abrirá para leer tu Apple Watch. Tras completarse, refresca esta pantalla.');
+      }, 1000);
+    });
+  }
+
+  // Handle Manual Form Submission
+  if (syncForm) {
+    syncForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const sleepHours = document.getElementById('input-sleep').value;
+      const hrvVal = document.getElementById('input-hrv').value;
+      const rhrVal = document.getElementById('input-rhr').value;
+      const deepVal = document.getElementById('input-deep').value;
+      const remVal = document.getElementById('input-rem').value;
+
+      if (!sleepHours) return;
+
+      const payload = {
+        sleep_hours: parseFloat(sleepHours),
+        hrv_ms: hrvVal ? parseFloat(hrvVal) : null,
+        resting_hr: rhrVal ? parseFloat(rhrVal) : null,
+        deep_sleep_hours: deepVal ? parseFloat(deepVal) : null,
+        rem_sleep_hours: remVal ? parseFloat(remVal) : null
+      };
+
+      submitBtn.textContent = 'Analizando con Gemini...';
+      submitBtn.disabled = true;
+
+      try {
+        const res = await fetch('/api/v1/recovery', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error('Error al registrar recuperación.');
+        
+        closeModal();
+        syncForm.reset();
+        await initDashboard(); // Refresh metrics with the new calculation!
+      } catch (err) {
+        alert('Error al sincronizar datos: ' + err.message);
+      } finally {
+        submitBtn.textContent = 'Analizar y Sincronizar';
+        submitBtn.disabled = false;
+      }
+    });
   }
 }

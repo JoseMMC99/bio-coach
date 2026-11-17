@@ -92,5 +92,39 @@ class TestWebAppAPI(unittest.TestCase):
             self.assertIn("name", data)
             self.assertIn("start_url", data)
 
+    def test_manual_recovery_sync_from_webapp(self):
+        """Manual sync from WebApp modal triggers morning recovery pipeline."""
+        self.mock_service.process_morning_recovery.return_value = {
+            "status": "success",
+            "recovery_score": 78,
+            "traffic_light": "GREEN",
+            "watch_notification": "🟢 Recuperación 78% (Sincronización manual)."
+        }
+
+        payload = {
+            "sleep_hours": "7.5",
+            "hrv_ms": "58",
+            "resting_hr": "54",
+            "deep_sleep_hours": "1.2"
+        }
+        status, body = self.api.handle_request("POST", "/api/v1/recovery", payload)
+        self.assertEqual(status, 200)
+        self.assertEqual(body["status"], "success")
+        self.assertEqual(body["recovery_score"], 78)
+
+    def test_manual_sync_sleep_only_recovery(self):
+        """Manual sync when user only inputs sleep duration."""
+        self.mock_service.process_morning_recovery.return_value = {
+            "status": "success",
+            "recovery_score": 70,
+            "traffic_light": "YELLOW",
+            "is_partial": True
+        }
+
+        payload = {"sleep_hours": "6.5"}
+        status, body = self.api.handle_request("POST", "/api/v1/recovery", payload)
+        self.assertEqual(status, 200)
+        self.assertEqual(body["status"], "success")
+
 if __name__ == "__main__":
     unittest.main()
