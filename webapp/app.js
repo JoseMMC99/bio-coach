@@ -501,17 +501,32 @@ async function fetchDirectFromSupabase(athleteKey) {
     ? `${SUPABASE_CONFIG.url}/rest/v1/workouts?athlete_id=eq.${encodeURIComponent(athleteKey)}&order=created_at.desc&limit=6`
     : `${SUPABASE_CONFIG.url}/rest/v1/workouts?is_demo=eq.true&order=created_at.desc&limit=6`;
 
-  const [recRes, wkRes] = await Promise.all([
+  const hrUrl = athleteKey
+    ? `${SUPABASE_CONFIG.url}/rest/v1/hr_checkins?athlete_id=eq.${encodeURIComponent(athleteKey)}&order=created_at.desc&limit=5`
+    : `${SUPABASE_CONFIG.url}/rest/v1/hr_checkins?is_demo=eq.true&order=created_at.desc&limit=5`;
+
+  const nutrUrl = athleteKey
+    ? `${SUPABASE_CONFIG.url}/rest/v1/nutrition_logs?athlete_id=eq.${encodeURIComponent(athleteKey)}&order=created_at.desc&limit=10`
+    : `${SUPABASE_CONFIG.url}/rest/v1/nutrition_logs?is_demo=eq.true&order=created_at.desc&limit=10`;
+
+  const [recRes, wkRes, hrRes, nutrRes] = await Promise.all([
     fetch(recUrl, { headers }),
-    fetch(wkUrl, { headers })
+    fetch(wkUrl, { headers }),
+    fetch(hrUrl, { headers }).catch(() => ({ ok: false })),
+    fetch(nutrUrl, { headers }).catch(() => ({ ok: false }))
   ]);
 
   if (!recRes.ok) throw new Error("Error querying Supabase daily_recovery");
 
   const history = await recRes.json();
   const workouts = wkRes.ok ? await wkRes.json() : [];
+  const hrCheckins = hrRes.ok ? await hrRes.json() : [];
+  const nutritionLogs = nutrRes.ok ? await nutrRes.json() : [];
 
-  return processBiometricHistory(history, workouts);
+  const result = processBiometricHistory(history, workouts);
+  result.hr_checkins = hrCheckins;
+  result.nutrition_logs = nutritionLogs;
+  return result;
 }
 
 // Client-Side Physiological Modeler (Replicates Python physiology engine + 30-day Apple Vitals Typical Range)
@@ -1656,6 +1671,16 @@ function buildFullBiometricContext(t) {
   if (mobilityParts.length > 0) lines.push(`- Movilidad/Marcha: ${mobilityParts.join(', ')}`);
   if (t.recent_clinical_events && t.recent_clinical_events.length > 0) {
     lines.push(`- Alertas Clínicas Recientes (30d): ${t.recent_clinical_events.join(' | ')}`);
+  }
+  const hrChecks = window.currentDashboardData?.hr_checkins || [];
+  if (hrChecks.length > 0) {
+    const latestHr = hrChecks[0];
+    lines.push(`- Último Check Cardíaco: ${latestHr.current_hr} lpm (${latestHr.user_sensation || 'rutina'}, ${(latestHr.created_at || '').slice(0, 16).replace('T', ' ')})`);
+  }
+  const meals = window.currentDashboardData?.nutrition_logs || [];
+  if (meals.length > 0) {
+    const recentMeals = meals.slice(0, 3).map(m => `${m.meal_type || 'comida'}: "${m.raw_text}"`).join(' | ');
+    lines.push(`- Comidas Registradas Recientes: ${recentMeals}`);
   }
   return lines.join('\n');
 }

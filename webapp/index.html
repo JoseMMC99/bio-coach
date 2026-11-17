@@ -1035,19 +1035,18 @@ Step 9: Show Notification with title "BioCoach Matutino" and body containing res
               📋 Copiar Prompt
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">Lee calorías activas, duración y frecuencia cardíaca del último entreno.</p>
-          <pre id="prompt-text-workout" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create a new Apple Shortcut named "Fin de Entrenamiento".
-Step 1: Find the latest workout session from HealthKit (limit to 1, sorted by newest end date).
-Step 2: Extract workout activity type, total duration in minutes, active calories burned, average heart rate, and maximum heart rate as pure numbers.
-Step 3: Create a Dictionary with:
-- "workout_type": Activity type as text
-- "duration_minutes": Duration in minutes
-- "active_calories": Active energy burned in kcal
-- "avg_hr": Average heart rate
-- "max_hr": Maximum heart rate
-- "athlete_id": "{PIN}"
-Step 4: Make an HTTP POST request using Get Contents of URL:
-- URL: "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/workouts"
+          <p class="text-[10px] text-slate-400">Registra tu último entreno con duración en minutos, calorías enteras y pulso promedio/máximo real de esa sesión.</p>
+          <pre id="prompt-text-workout" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "Fin de Entrenamiento":
+Step 1: Find Health samples for "Workouts" sorted by End Date (Latest First), limit 1 (store as LatestWorkout).
+Step 2: Create a Dictionary with initial keys:
+  * "workout_type": Activity Type of LatestWorkout as Text (default "entrenamiento" if empty)
+  * "athlete_id": "{PIN}"
+Step 3 (Duration in Minutes): Get Duration of LatestWorkout in seconds, divide by 60 (or set unit to Minutes) and round to 2 decimals. If > 0, Set Dictionary Value for key "duration_minutes".
+Step 4 (Active Calories - MUST be whole integer): Get Active Energy / Calories Burned of LatestWorkout, Round to Ones Place (integer, no decimals). If > 0, Set Dictionary Value for key "active_calories".
+Step 5 (Workout Heart Rate - MUST be whole integers): Find Health samples for "Heart Rate" where Start Date is between Start Date of LatestWorkout and End Date of LatestWorkout.
+  * Calculate Statistics: Average, Round to Ones Place (integer). If > 0, Set Dictionary Value for key "avg_hr".
+  * Calculate Statistics: Maximum, Round to Ones Place (integer). If > 0, Set Dictionary Value for key "max_hr".
+Step 6: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/workouts":
 - Request Body: JSON with the Dictionary
 - Headers:
   * "Content-Type": "application/json"
@@ -1055,7 +1054,7 @@ Step 4: Make an HTTP POST request using Get Contents of URL:
   * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
   * "Prefer": "return=representation"
   * "x-athlete-token": "{PIN}"
-Step 5: Show Notification with title "BioCoach Cloud" and body containing the exact result from Get Contents of URL.</pre>
+Step 7: Show Notification with title "BioCoach Entreno" and body containing the result from URL request.</pre>
         </div>
 
         <!-- Prompt 3: Check Cardíaco -->
@@ -1068,17 +1067,15 @@ Step 5: Show Notification with title "BioCoach Cloud" and body containing the ex
               📋 Copiar Prompt
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">Toma una instantánea de pulso y variabilidad cardíaca en tiempo real.</p>
-          <pre id="prompt-text-hr" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create a new Apple Shortcut named "Check Cardíaco".
-Step 1: Find the latest Health sample for "Heart Rate" (limit 1, newest). Extract pure number.
-Step 2: Find the latest Health sample for "Heart Rate Variability SDNN" (limit 1, newest). Extract pure number.
-Step 3: Create a Dictionary with:
-- "current_hr": Heart rate value
-- "current_hrv": Heart rate variability value
-- "user_sensation": "chequeo_rapido"
-- "athlete_id": "{PIN}"
-Step 4: Send an HTTP POST request using Get Contents of URL:
-- URL: "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/hr_checkins"
+          <p class="text-[10px] text-slate-400">Captura tu pulso actual (entero exacto) y sensación del momento para registrar picos de estrés o palpitaciones.</p>
+          <pre id="prompt-text-hr" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "Check Cardíaco":
+Step 1: Find latest Health sample for "Heart Rate" (sorted by End Date, Latest First, limit 1). Get Value as Number and Round to Ones Place (MUST be a whole integer, no decimals).
+Step 2: Choose from Menu with prompt "¿Cómo te sientes?" and options: "rutina", "estrés", "palpitaciones", "ansiedad", "post-café" (store selected text as Sensation).
+Step 3: Create a Dictionary with ONLY these exact keys:
+  * "current_hr": rounded integer Heart Rate
+  * "user_sensation": Sensation
+  * "athlete_id": "{PIN}"
+Step 4: Send an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/hr_checkins":
 - Request Body: JSON with the Dictionary
 - Headers:
   * "Content-Type": "application/json"
@@ -1086,7 +1083,7 @@ Step 4: Send an HTTP POST request using Get Contents of URL:
   * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
   * "Prefer": "return=representation"
   * "x-athlete-token": "{PIN}"
-Step 5: Show Notification with title "BioCoach Cloud" and body containing the exact result from Get Contents of URL.</pre>
+Step 5: Show Notification with title "BioCoach Pulso" and body containing the result from URL request.</pre>
         </div>
 
         <!-- Prompt 4: Registro de Nutrición por Voz -->
@@ -1099,15 +1096,17 @@ Step 5: Show Notification with title "BioCoach Cloud" and body containing the ex
               📋 Copiar Prompt
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">Dictado por voz para que Gemini estime calorías y macronutrientes.</p>
-          <pre id="prompt-text-meal" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create a new Apple Shortcut named "Registro de Nutrición por Voz".
-Step 1: Ask for Text Input with prompt "¿Qué comiste?".
-Step 2: Create a Dictionary with:
-- "raw_text": Provided Text Input
-- "meal_type": "comida"
-- "athlete_id": "{PIN}"
-Step 3: Make an HTTP POST request to:
-- URL: "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/nutrition_logs"
+          <p class="text-[10px] text-slate-400">Dicta tu comida por voz o texto; BioCoach + Gemini estiman automáticamente calorías y macros en tu fecha local.</p>
+          <pre id="prompt-text-meal" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "Registro de Nutrición por Voz":
+Step 1: Choose from List with options: "desayuno", "almuerzo", "cena", "snack" (store as MealType).
+Step 2: Dictate Text (or Ask for Text Input) with prompt "¿Qué comiste?" (store as MealText).
+Step 3: Format Current Date as "yyyy-MM-dd" (store as LocalDate).
+Step 4: Create a Dictionary with:
+  * "logged_date": LocalDate
+  * "meal_type": MealType
+  * "raw_text": MealText
+  * "athlete_id": "{PIN}"
+Step 5: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/nutrition_logs":
 - Request Body: JSON with the Dictionary
 - Headers:
   * "Content-Type": "application/json"
@@ -1115,7 +1114,7 @@ Step 3: Make an HTTP POST request to:
   * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
   * "Prefer": "return=representation"
   * "x-athlete-token": "{PIN}"
-Step 4: Show Notification with title "BioCoach Cloud" and body containing the exact result from Get Contents of URL.</pre>
+Step 6: Show Notification with title "BioCoach Nutrición" and body containing the result from URL request.</pre>
         </div>
 
       </div>
