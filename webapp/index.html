@@ -739,13 +739,13 @@ Step 2: Repeat with Each number in the List:
   * Create a Dictionary with initial keys:
     - "recorded_date": DateString
     - "athlete_id": "{PIN}"
-  * Find Health samples for "Sleep Analysis" on that specific date (Asleep only). Calculate Sum of Duration, divide by 3600 (or set unit to Hours) and round to 2 decimals (value between 0.0 and 24.0). If it has any value, Set Dictionary Value for key "sleep_hours".
-  * Find Health samples for "Sleep Analysis" on that specific date where Value is "Asleep Deep". Get total duration in Hours (divide seconds by 3600, round to 2 decimals). If it has any value, Set Dictionary Value for key "deep_sleep_hours".
-  * Find Health samples for "Sleep Analysis" on that specific date where Value is "Asleep REM". Get total duration in Hours (divide seconds by 3600, round to 2 decimals). If it has any value, Set Dictionary Value for key "rem_sleep_hours".
+  * Find Health samples for "Sleep Analysis" where End Date is on that specific date AND Value is NOT "In Bed" AND Value is NOT "Awake" (this captures all asleep stages: Core, Deep, REM, Asleep). Calculate Sum of Duration, divide by 3600 (or set unit to Hours) and round to 2 decimals. If it has any value, Set Dictionary Value for key "sleep_hours".
+  * Find Health samples for "Sleep Analysis" where End Date is on that specific date AND Value is "Asleep Deep". Get total duration in Hours (divide seconds by 3600, round to 2 decimals). If it has any value, Set Dictionary Value for key "deep_sleep_hours".
+  * Find Health samples for "Sleep Analysis" where End Date is on that specific date AND Value is "Asleep REM". Get total duration in Hours (divide seconds by 3600, round to 2 decimals). If it has any value, Set Dictionary Value for key "rem_sleep_hours".
   * Find Health samples for "Resting Heart Rate" on that specific date. Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "resting_hr".
   * Find Health samples for "Heart Rate Variability SDNN" on that specific date. Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "hrv_ms".
   * Find Health samples for "Respiratory Rate" on that specific date. Calculate Statistics: Average (NEVER Sum) in breaths/min as Number. If it has any value, Set Dictionary Value for key "respiratory_rate".
-  * Find Health samples for "Apple Sleeping Wrist Temperature" on that specific date. Calculate Statistics: Average (NEVER Sum) in Celsius (°C) as Number. If it has any value, Set Dictionary Value for key "wrist_temp_deviation".
+  * Find Health samples for "Apple Sleeping Wrist Temperature" on that specific date with Unit explicitly set to "degC" (Celsius, NEVER Fahrenheit). Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "wrist_temp_deviation".
   * Find Health samples for "Time in Daylight" on that specific date. Get total duration in Minutes and Round to Ones Place (whole integer, no decimals). If it has any value, Set Dictionary Value for key "daylight_minutes".
   * IMPORTANT - Inside the Repeat loop (before End Repeat): Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date":
     - Request Body: JSON / File with the Dictionary of this day
@@ -775,13 +775,13 @@ Step 1: Format Current Date as "yyyy-MM-dd" (DateString).
 Step 2: Create a Dictionary with initial keys:
   * "recorded_date": DateString
   * "athlete_id": "{PIN}"
-Step 3: Find Health samples for "Sleep Analysis" where End Date is in the last 24 hours (Asleep only). Calculate Sum of Duration, divide by 3600 (or set unit to Hours) and round to 2 decimals (result MUST be in hours between 0.0 and 24.0, never raw seconds). If it has any value, Set Dictionary Value for key "sleep_hours".
-Step 4: Find Health samples for "Sleep Analysis" in the last 24 hours where Value is "Asleep Deep". Get total duration in Hours (divide seconds by 3600, round to 2 decimals). If it has any value, Set Dictionary Value for key "deep_sleep_hours".
-Step 5: Find Health samples for "Sleep Analysis" in the last 24 hours where Value is "Asleep REM". Get total duration in Hours (divide seconds by 3600, round to 2 decimals). If it has any value, Set Dictionary Value for key "rem_sleep_hours".
+Step 3: Find Health samples for "Sleep Analysis" where End Date is in the last 24 hours AND Value is NOT "In Bed" AND Value is NOT "Awake" (this captures all asleep stages: Core, Deep, REM, Asleep). Calculate Sum of Duration, divide by 3600 (or set unit to Hours) and round to 2 decimals (result MUST be in hours between 0.0 and 24.0, never raw seconds). If it has any value, Set Dictionary Value for key "sleep_hours".
+Step 4: Find Health samples for "Sleep Analysis" where End Date is in the last 24 hours AND Value is "Asleep Deep". Get total duration in Hours (divide seconds by 3600, round to 2 decimals). If it has any value, Set Dictionary Value for key "deep_sleep_hours".
+Step 5: Find Health samples for "Sleep Analysis" where End Date is in the last 24 hours AND Value is "Asleep REM". Get total duration in Hours (divide seconds by 3600, round to 2 decimals). If it has any value, Set Dictionary Value for key "rem_sleep_hours".
 Step 6: Find Health samples for "Resting Heart Rate" in the last 24 hours. Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "resting_hr".
 Step 7: Find Health samples for "Heart Rate Variability SDNN" in the last 24 hours. Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "hrv_ms".
 Step 8: Find Health samples for "Respiratory Rate" in the last 24 hours. Calculate Statistics: Average (NEVER Sum) in breaths/min as Number. If it has any value, Set Dictionary Value for key "respiratory_rate".
-Step 9: Find Health samples for "Apple Sleeping Wrist Temperature" in the last 24 hours. Calculate Statistics: Average (NEVER Sum) in Celsius (°C) as Number. If it has any value, Set Dictionary Value for key "wrist_temp_deviation".
+Step 9: Find Health samples for "Apple Sleeping Wrist Temperature" in the last 24 hours with Unit explicitly set to "degC" (Celsius, NEVER Fahrenheit). Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "wrist_temp_deviation".
 Step 10: Find Health samples for "Time in Daylight" in the last 24 hours. Get total duration in Minutes and Round to Ones Place (whole integer). If it has any value, Set Dictionary Value for key "daylight_minutes".
 Step 11: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date":
 - Request Body: JSON / File with the Dictionary

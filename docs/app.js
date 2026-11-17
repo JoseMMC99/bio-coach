@@ -535,29 +535,36 @@ function processBiometricHistory(history, workouts) {
     targetSleep
   );
 
+  // Normalize wrist temperature to Celsius if Shortcuts sent Fahrenheit (> 50°F)
+  const toCelsius = (val) => {
+    if (val == null || isNaN(Number(val))) return null;
+    const n = Number(val);
+    return n > 50 ? Number(((n - 32) * 5 / 9).toFixed(2)) : n;
+  };
+
   // Calculate 7-day rolling baselines for immune/illness biomarkers (Respiratory Rate & Wrist Temp)
   const validResp = history.filter(r => r.respiratory_rate != null).map(r => Number(r.respiratory_rate));
-  const validTemp = history.filter(r => r.wrist_temp_deviation != null).map(r => Number(r.wrist_temp_deviation));
+  const validTemp = history.filter(r => r.wrist_temp_deviation != null).map(r => toCelsius(r.wrist_temp_deviation)).filter(v => v != null);
   const baseResp = validResp.length > 0 ? (validResp.reduce((a, b) => a + b, 0) / validResp.length) : null;
   const baseTemp = validTemp.length > 0 ? (validTemp.reduce((a, b) => a + b, 0) / validTemp.length) : null;
 
   // Build automatic clinical verdict if shortcut uploaded raw biometrics without Gemini text
   let autoVerdict = latest.gemini_verdict;
+  const latestTempC = toCelsius(latest.wrist_temp_deviation);
   if (!autoVerdict) {
     const respVal = latest.respiratory_rate != null ? Number(latest.respiratory_rate) : null;
-    const tempVal = latest.wrist_temp_deviation != null ? Number(latest.wrist_temp_deviation) : null;
-    const highTemp = tempVal != null && (
-      (baseTemp != null && tempVal >= baseTemp + 0.5) ||
-      (tempVal >= 37.2) ||
-      (tempVal >= 0.5 && tempVal < 5.0)
+    const highTemp = latestTempC != null && (
+      (baseTemp != null && validTemp.length >= 2 && latestTempC >= baseTemp + 0.5) ||
+      (latestTempC >= 37.2) ||
+      (latestTempC >= 0.5 && latestTempC < 5.0)
     );
     const highResp = respVal != null && (
-      (baseResp != null && respVal >= baseResp + 1.8) ||
-      respVal >= 18.0
+      (baseResp != null && validResp.length >= 2 && respVal >= baseResp + 2.0) ||
+      (baseResp == null && respVal >= 20.0)
     );
 
     if (highTemp || (highResp && todayPillars.trafficLight !== 'GREEN')) {
-      autoVerdict = `⚠️ Alerta inmune: signos tempranos de posible gripa o estrés inmunológico (${tempVal != null ? `Temp: ${tempVal}°C` : ''}${tempVal != null && respVal != null ? ', ' : ''}${respVal != null ? `Resp: ${respVal} rpm` : ''}). Prioriza reposo, hidratación y evita cargas altas.`;
+      autoVerdict = `⚠️ Alerta inmune: signos tempranos de posible gripa o estrés inmunológico (${latestTempC != null ? `Temp: ${latestTempC}°C` : ''}${latestTempC != null && respVal != null ? ', ' : ''}${respVal != null ? `Resp: ${respVal} rpm` : ''}). Prioriza reposo, hidratación y evita cargas altas.`;
     } else if (todayPillars.trafficLight === 'GREEN') {
       autoVerdict = `🟢 Recuperación óptima (${todayPillars.score}%). Biomarcadores estables, listo para entrenar.`;
     } else if (todayPillars.trafficLight === 'YELLOW') {
@@ -580,7 +587,7 @@ function processBiometricHistory(history, workouts) {
       deep_sleep: latest.deep_sleep_hours,
       rem_sleep: latest.rem_sleep_hours,
       respiratory_rate: latest.respiratory_rate,
-      wrist_temp_deviation: latest.wrist_temp_deviation,
+      wrist_temp_deviation: latestTempC,
       daylight_minutes: latest.daylight_minutes,
       base_resp: baseResp,
       base_temp: baseTemp,
