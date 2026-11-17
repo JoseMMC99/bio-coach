@@ -52,11 +52,13 @@ flowchart TD
   - [x] Integración con la API de Gemini mediante prompts estructurados y fallbacks locales.
   - [x] Capa de servicio e integración con Supabase PostgREST.
   - [x] Suite completa de 19 tests unitarios y de integración con cobertura de casos límite (TDD).
-- [ ] **Fase 3: Atajos de iOS Automatizados**
-  - [ ] Atajo de recuperación matutina (disparo al apagar alarma/sueño).
-  - [ ] Atajo post-entrenamiento con cálculo de zonas de pulso.
-  - [ ] Atajo a demanda para chequeo de palpitaciones/estrés.
-  - [ ] Atajo de dictado por voz para nutrición.
+- [x] **Fase 3: Atajos de iOS Automatizados**
+  - [x] Atajo de recuperación matutina (disparo al apagar alarma/sueño).
+  - [x] Atajo post-entrenamiento con cálculo de zonas de pulso.
+  - [x] Atajo a demanda para chequeo de palpitaciones/estrés.
+  - [x] Atajo de dictado por voz para nutrición.
+  - [x] Validador de payloads y coerción de formatos regionales (comas decimales en iOS).
+  - [x] Gateway HTTP API nativo con enrutamiento y manejo de errores.
 - [ ] **Fase 4: WebApp PWA**
   - [ ] Dashboard interactivo de tendencias semanales y mensuales.
   - [ ] Chat interactivo con el Coach (Gemini con memoria total en base de datos).
