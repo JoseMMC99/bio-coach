@@ -730,21 +730,40 @@
               📋 Copiar Prompt
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">Automatización diaria al apagar el Modo Sueño. Usa <code class="text-cyan-300">End Date is Today</code> en todas las métricas para capturar sueño total, profundo, REM, FC, VFC, respiración, temperatura y luz solar sin desfases de medianoche.</p>
+          <p class="text-[10px] text-slate-400">Automatización diaria al despertar. Extrae TODA tu telemetría del Apple Watch (sueño completo, cardio, SpO2, respiración, apnea/alteraciones, temperatura, actividad, luz solar y ruido) con <code class="text-cyan-300">End Date is Today</code>.</p>
           <pre id="prompt-text-recovery" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "Recuperación Matutina":
 Step 1: Format Current Date as "yyyy-MM-dd" (store as DateString).
 Step 2: Create a Dictionary with initial keys:
   * "recorded_date": DateString
   * "athlete_id": "{PIN}"
-Step 3 (Total Sleep Hours): Find Health samples for "Sleep Analysis" where End Date is Today AND Value is NOT "Awake" AND Value is NOT "In Bed". Get Duration of samples, calculate Sum in seconds, divide by 3600 (or set unit to Hours) and round to 2 decimals. If it has any value and is greater than 0, Set Dictionary Value for key "sleep_hours".
-Step 4 (Deep Sleep Hours): Find Health samples for "Sleep Analysis" where End Date is Today AND Value is "Asleep Deep". Calculate Sum of Duration divided by 3600, round to 2 decimals. If it has any value and is greater than 0, Set Dictionary Value for key "deep_sleep_hours".
-Step 5 (REM Sleep Hours): Find Health samples for "Sleep Analysis" where End Date is Today AND Value is "Asleep REM". Calculate Sum of Duration divided by 3600, round to 2 decimals. If it has any value and is greater than 0, Set Dictionary Value for key "rem_sleep_hours".
-Step 6 (Resting Heart Rate): Find Health samples for "Resting Heart Rate" where End Date is Today. Calculate Statistics: Average as Number. If it has any value, Set Dictionary Value for key "resting_hr".
-Step 7 (HRV SDNN): Find Health samples for "Heart Rate Variability SDNN" where End Date is Today. Calculate Statistics: Average as Number. If it has any value, Set Dictionary Value for key "hrv_ms".
-Step 8 (Respiratory Rate): Find Health samples for "Respiratory Rate" where End Date is Today. Calculate Statistics: Average as Number. If it has any value, Set Dictionary Value for key "respiratory_rate".
-Step 9 (Sleeping Wrist Temperature): Find Health samples for "Apple Sleeping Wrist Temperature" where End Date is Today (CRITICAL: leave Unit blank/default on the Health action — do NOT pick count/% and do NOT convert units, BioCoach converts automatically). Calculate Statistics: Average as Number. If it has any value, Set Dictionary Value for key "wrist_temp_deviation".
-Step 10 (Time in Daylight): Find Health samples for "Time in Daylight" where End Date is Today. Calculate Sum of Duration in Minutes and Round to Ones Place (integer). If it has any value and is greater than 0, Set Dictionary Value for key "daylight_minutes".
-Step 11: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date":
+Step 3 (Sleep Architecture - End Date is Today, convert seconds to Hours by dividing by 3600 and rounding to 2 decimals; only Set Dictionary Value if value > 0):
+  * "Sleep Analysis" where Value is NOT "Awake" AND Value is NOT "In Bed" -> Sum Duration ÷ 3600 -> key "sleep_hours"
+  * "Sleep Analysis" where Value is "Asleep Deep" -> Sum Duration ÷ 3600 -> key "deep_sleep_hours"
+  * "Sleep Analysis" where Value is "Asleep REM" -> Sum Duration ÷ 3600 -> key "rem_sleep_hours"
+  * "Sleep Analysis" where Value is "Asleep Core" -> Sum Duration ÷ 3600 -> key "core_sleep_hours"
+  * "Sleep Analysis" where Value is "Awake" -> Sum Duration ÷ 3600 -> key "awake_sleep_hours"
+Step 4 (Cardiovascular Vitals - End Date is Today; only Set Dictionary Value if it has any value):
+  * "Resting Heart Rate" -> Calculate Statistics: Average -> key "resting_hr"
+  * "Heart Rate Variability SDNN" -> Calculate Statistics: Average -> key "hrv_ms"
+  * "Heart Rate" -> Calculate Statistics: Average -> key "avg_hr"; Minimum -> key "min_hr"; Maximum -> key "max_hr"
+  * "Walking Heart Rate Average" -> Calculate Statistics: Average -> key "walking_hr_avg"
+  * "VO2 Max" (latest 1 sample, no date filter) -> Value as Number -> key "vo2_max"
+Step 5 (Respiratory, Oxygen & Temperature - End Date is Today; leave Unit blank/default on Health actions, BioCoach auto-converts; only Set Dictionary Value if it has any value):
+  * "Respiratory Rate" -> Calculate Statistics: Average -> key "respiratory_rate"
+  * "Blood Oxygen" (Oxygen Saturation) -> Calculate Statistics: Average -> key "spo2_pct"
+  * "Breathing Disturbances" (Sleeping Breathing Disturbances) -> Calculate Statistics: Average -> key "breathing_disturbances"
+  * "Apple Sleeping Wrist Temperature" -> Calculate Statistics: Average -> key "wrist_temp_deviation"
+Step 6 (Activity, Energy & Environment - End Date is Today; round INT fields to whole integers with no decimals; only Set Dictionary Value if value > 0):
+  * "Steps" -> Sum, Round to Ones Place (integer) -> key "steps"
+  * "Active Energy" -> Sum (kcal), Round to Ones Place (integer) -> key "active_calories"
+  * "Resting Energy" (Basal Energy) -> Sum (kcal), Round to Ones Place (integer) -> key "basal_calories"
+  * "Apple Exercise Time" -> Sum (min), Round to Ones Place (integer) -> key "exercise_minutes"
+  * "Walking + Running Distance" -> Sum (km), round to 2 decimals -> key "distance_km"
+  * "Flights Climbed" -> Sum, Round to Ones Place (integer) -> key "flights_climbed"
+  * "Time in Daylight" -> Sum (min), Round to Ones Place (integer) -> key "daylight_minutes"
+  * "Environmental Sound Levels" -> Calculate Statistics: Average (dB) -> key "audio_exposure_db"
+  * "Weight" (Body Mass, latest 1 sample) -> Value (kg) as Number -> key "body_mass_kg"
+Step 7: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date":
 - Request Body: JSON with the Dictionary
 - Headers:
   * "Content-Type": "application/json"
@@ -752,7 +771,7 @@ Step 11: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/
   * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
   * "Prefer": "resolution=merge-duplicates,return=representation"
   * "x-athlete-token": "{PIN}"
-Step 12: Show Notification with title "BioCoach Matutino" and body containing result from URL request.</pre>
+Step 8: Show Notification with title "BioCoach Matutino" and body containing result from URL request.</pre>
         </div>
 
         <!-- Prompt 00 (Opcional): Recuperación Manual de Ayer (solo si un día no corrió la automatización) -->

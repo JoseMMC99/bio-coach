@@ -593,6 +593,32 @@ function processBiometricHistory(history, workouts) {
     }
   }
 
+  const toPct = (val) => {
+    if (val == null || isNaN(Number(val))) return null;
+    const n = Number(val);
+    return n > 0 && n <= 1.5 ? Number((n * 100).toFixed(1)) : Number(n.toFixed(1));
+  };
+
+  // Additional 30-day baselines for full clinical Apple Watch telemetry
+  const validSpo2 = history.filter(r => r.spo2_pct != null && Number(r.spo2_pct) > 0).map(r => toPct(r.spo2_pct));
+  const validBreathDist = history.filter(r => r.breathing_disturbances != null).map(r => Number(r.breathing_disturbances));
+  const validSteps = history.filter(r => r.steps != null && Number(r.steps) > 0).map(r => Number(r.steps));
+  const validActCal = history.filter(r => r.active_calories != null && Number(r.active_calories) > 0).map(r => Number(r.active_calories));
+  const baseSpo2 = validSpo2.length > 0 ? (validSpo2.reduce((a, b) => a + b, 0) / validSpo2.length) : null;
+  const baseBreathDist = validBreathDist.length > 0 ? (validBreathDist.reduce((a, b) => a + b, 0) / validBreathDist.length) : null;
+  const baseSteps = validSteps.length > 0 ? Math.round(validSteps.reduce((a, b) => a + b, 0) / validSteps.length) : null;
+  const baseActCal = validActCal.length > 0 ? Math.round(validActCal.reduce((a, b) => a + b, 0) / validActCal.length) : null;
+  const latestVo2 = history.find(r => r.vo2_max != null)?.vo2_max ?? null;
+  const latestWeight = history.find(r => r.body_mass_kg != null)?.body_mass_kg ?? null;
+  const recentClinicalEvents = history
+    .filter(r => r.extra_metrics && (r.extra_metrics.hypertension_events || r.extra_metrics.sleep_apnea_events))
+    .map(r => {
+      const ev = [];
+      if (r.extra_metrics.hypertension_events) ev.push(`Hipertensión (${r.recorded_date})`);
+      if (r.extra_metrics.sleep_apnea_events) ev.push(`Apnea del sueño (${r.recorded_date})`);
+      return ev.join(', ');
+    });
+
   return {
     status: "success",
     is_day_one: false,
@@ -602,16 +628,40 @@ function processBiometricHistory(history, workouts) {
       traffic_light: todayPillars.trafficLight,
       hrv: latest.hrv_ms,
       rhr: latest.resting_hr,
+      avg_hr: latest.avg_hr,
+      min_hr: latest.min_hr,
+      max_hr: latest.max_hr,
+      walking_hr_avg: latest.walking_hr_avg,
       sleep: latest.sleep_hours,
       deep_sleep: latest.deep_sleep_hours,
       rem_sleep: latest.rem_sleep_hours,
+      core_sleep: latest.core_sleep_hours,
+      awake_sleep: latest.awake_sleep_hours,
       respiratory_rate: latest.respiratory_rate,
+      spo2_pct: toPct(latest.spo2_pct),
+      breathing_disturbances: latest.breathing_disturbances,
       wrist_temp_deviation: latestTempC,
       daylight_minutes: latest.daylight_minutes,
+      steps: latest.steps,
+      active_calories: latest.active_calories,
+      basal_calories: latest.basal_calories,
+      exercise_minutes: latest.exercise_minutes,
+      stand_hours: latest.stand_hours,
+      distance_km: latest.distance_km,
+      flights_climbed: latest.flights_climbed,
+      audio_exposure_db: latest.audio_exposure_db,
+      vo2_max: latest.vo2_max ?? latestVo2,
+      body_mass_kg: latest.body_mass_kg ?? latestWeight,
+      extra_metrics: latest.extra_metrics || {},
       base_hrv: baseHrv,
       base_rhr: baseRhr,
       base_resp: baseResp,
       base_temp: baseTemp,
+      base_spo2: baseSpo2,
+      base_breath_dist: baseBreathDist,
+      base_steps: baseSteps,
+      base_active_cal: baseActCal,
+      recent_clinical_events: recentClinicalEvents,
       history_days: history.length,
       has_saved_gemini_verdict: Boolean(latest.gemini_verdict),
       verdict: autoVerdict,
@@ -1329,16 +1379,38 @@ function initChat() {
   }
 }
 
+// Builds a complete, dense clinical telemetry block from all Apple Watch metrics for Gemini
+function buildFullBiometricContext(t) {
+  if (!t) return "";
+  const extra = t.extra_metrics || {};
+  const lines = [
+    `Fecha: ${t.date || '--'} (Rango base calculado sobre ${t.history_days || 1} días)`,
+    `- Recuperación: ${t.score ?? '--'}%`,
+    `- Sueño: Total ${t.sleep ?? '--'}h | Profundo ${t.deep_sleep ?? '--'}h | REM ${t.rem_sleep ?? '--'}h | Core ${t.core_sleep ?? '--'}h | Despierto ${t.awake_sleep ?? '--'}h`,
+    `- Cardio: FC Reposo ${t.rhr ?? '--'} lpm (media 30d: ${t.base_rhr != null ? t.base_rhr.toFixed(1) : '--'}), FC Prom ${t.avg_hr ?? '--'} (mín ${t.min_hr ?? '--'}/máx ${t.max_hr ?? '--'}), FC Caminando ${t.walking_hr_avg ?? '--'} lpm, HRV ${t.hrv ?? '--'} ms (media 30d: ${t.base_hrv != null ? t.base_hrv.toFixed(1) : '--'}), VO2Max ${t.vo2_max ?? '--'} mL/min·kg`,
+    `- Respiratorio/Inmune: Respiración ${t.respiratory_rate ?? '--'} rpm (media 30d: ${t.base_resp != null ? t.base_resp.toFixed(1) : '--'}), SpO2 ${t.spo2_pct ?? '--'}% (media 30d: ${t.base_spo2 != null ? t.base_spo2.toFixed(1) : '--'}%), Alteraciones Resp. Sueño ${t.breathing_disturbances ?? '--'}/h (media 30d: ${t.base_breath_dist != null ? t.base_breath_dist.toFixed(1) : '--'}), Temp. Muñeca ${t.wrist_temp_deviation ?? '--'}°C (media 30d: ${t.base_temp != null ? t.base_temp.toFixed(2) : '--'}°C)`,
+    `- Actividad/Entorno: Pasos ${t.steps ?? '--'} (media: ${t.base_steps ?? '--'}), Cal Activas ${t.active_calories ?? '--'} kcal (media: ${t.base_active_cal ?? '--'}), Cal Basales ${t.basal_calories ?? '--'} kcal, Ejercicio ${t.exercise_minutes ?? '--'} min, Horas de Pie ${t.stand_hours ?? '--'}h, Distancia ${t.distance_km ?? '--'} km, Pisos ${t.flights_climbed ?? '--'}, Luz Solar ${t.daylight_minutes ?? '--'} min, Ruido Ambiental ${t.audio_exposure_db ?? '--'} dB, Peso ${t.body_mass_kg ?? '--'} kg`
+  ];
+  const mobilityParts = [];
+  if (extra.walking_speed_kmh != null) mobilityParts.push(`Vel. marcha ${extra.walking_speed_kmh} km/h`);
+  if (extra.walking_step_length_cm != null) mobilityParts.push(`Paso ${extra.walking_step_length_cm} cm`);
+  if (extra.walking_asymmetry_pct != null) mobilityParts.push(`Asimetría ${extra.walking_asymmetry_pct}%`);
+  if (extra.walking_steadiness_pct != null) mobilityParts.push(`Estabilidad ${extra.walking_steadiness_pct}%`);
+  if (mobilityParts.length > 0) lines.push(`- Movilidad/Marcha: ${mobilityParts.join(', ')}`);
+  if (t.recent_clinical_events && t.recent_clinical_events.length > 0) {
+    lines.push(`- Alertas Clínicas Recientes (30d): ${t.recent_clinical_events.join(' | ')}`);
+  }
+  return lines.join('\n');
+}
+
 // Queries Google Gemini AI API directly with clinical sports coach persona
 async function queryGeminiDirectly(userQuestion, apiKey) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${apiKey}`;
   
-  let contextStr = "";
-  if (window.currentDashboardData && window.currentDashboardData.today) {
-    const t = window.currentDashboardData.today;
-    contextStr = ` Contexto actual del atleta hoy (${t.date || '--'}): Recuperación: ${t.score || '--'}%, Sueño Total: ${t.sleep ?? '--'}h (Profundo: ${t.deep_sleep ?? '--'}h, REM: ${t.rem_sleep ?? '--'}h), HRV: ${t.hrv ?? '--'}ms, FC Reposo: ${t.rhr ?? '--'} lpm, Frecuencia Respiratoria: ${t.respiratory_rate ?? '--'} rpm (base: ${t.base_resp != null ? t.base_resp.toFixed(1) : '--'} rpm), Temperatura Muñeca: ${t.wrist_temp_deviation ?? '--'}°C (base: ${t.base_temp != null ? t.base_temp.toFixed(2) : '--'}°C), Luz Solar: ${t.daylight_minutes ?? '--'} min.`;
-  }
-  const prompt = `Actúa como BioCoach AI, un fisiólogo deportivo y entrenador de rendimiento de élite. Responde de forma concisa (máximo 3 párrafos), motivadora y con base científica en español a esta consulta del atleta:${contextStr}\nIMPORTANTE: Evalúa siempre si la temperatura de muñeca o la frecuencia respiratoria están elevadas respecto a la línea base (especialmente junto con HRV baja o FC reposo alta); de ser así, advierte claramente sobre un posible inicio de gripa, infección viral o estrés inmunológico y sugiere reposo e hidratación.\nPregunta: "${userQuestion}"`;
+  const contextStr = window.currentDashboardData?.today
+    ? `\nTELEMETRÍA COMPLETA DEL ATLETA:\n${buildFullBiometricContext(window.currentDashboardData.today)}\n`
+    : "";
+  const prompt = `Actúa como BioCoach AI, un fisiólogo deportivo y médico preventivo de élite. Responde de forma concisa (máximo 3 párrafos), clara y con base científica en español a esta consulta del atleta:${contextStr}\nIMPORTANTE: Analiza TODAS las variables relevantes (sueño profundo/REM, SpO2, alteraciones respiratorias/apnea, temperatura de muñeca, respiración, HRV, FC reposo, hipertensión, pasos/calorías y movilidad) comparando contra su media de 30 días. Si hay señales de posible gripa/infección, apnea, fatiga o anomalía, señálalo explícitamente con claridad.\nPregunta: "${userQuestion}"`;
 
   const payload = {
     contents: [{ parts: [{ text: prompt }] }]
@@ -1356,22 +1428,15 @@ async function queryGeminiDirectly(userQuestion, apiKey) {
 }
 
 // Automatically generates a real daily Gemini clinical briefing ("Hay que ponerle cuidado a X o Y")
-// comparing today's Apple Watch metrics against the 30-day Typical Range, and persists it to Supabase.
+// comparing today's full Apple Watch metrics against the 30-day Typical Range, and persists it to Supabase.
 async function fetchAndSaveDailyGeminiVerdict(t) {
   try {
     const apiKey = localStorage.getItem('BIOCOACH_GEMINI_KEY') || DEFAULT_GEMINI_KEY;
     if (!apiKey) return;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${apiKey}`;
-    const prompt = `Actúa como BioCoach AI (fisiólogo deportivo y médico preventivo). Analiza las métricas REALES de hoy (${t.date}) comparadas contra el rango típico de los últimos ${t.history_days || 30} días del atleta:
-- Sueño Total: ${t.sleep ?? '--'}h (Profundo: ${t.deep_sleep ?? '--'}h, REM: ${t.rem_sleep ?? '--'}h)
-- FC Reposo: ${t.rhr ?? '--'} lpm (media 30d: ${t.base_rhr != null ? t.base_rhr.toFixed(1) : '--'} lpm)
-- HRV (VFC): ${t.hrv ?? '--'} ms (media 30d: ${t.base_hrv != null ? t.base_hrv.toFixed(1) : '--'} ms)
-- Frecuencia Respiratoria: ${t.respiratory_rate ?? '--'} rpm (media 30d: ${t.base_resp != null ? t.base_resp.toFixed(1) : '--'} rpm)
-- Temperatura de Muñeca: ${t.wrist_temp_deviation ?? '--'}°C (media 30d: ${t.base_temp != null ? t.base_temp.toFixed(2) : '--'}°C)
-- Luz Solar: ${t.daylight_minutes ?? '--'} min
-
-Responde en ESPAÑOL en máximo 2 frases directas y claras (sin saludos, sin markdown, máximo 240 caracteres). Empieza con el ícono de semáforo (🟢, 🟡 o 🔴) e indica concretamente a qué hay que ponerle cuidado hoy (por ejemplo: déficit de sueño profundo, posible inicio de gripa si subió temperatura/respiración, o luz verde si todo está en rango típico) y 1 acción práctica para hoy.`;
+    const fullContext = buildFullBiometricContext(t);
+    const prompt = `Actúa como BioCoach AI (fisiólogo deportivo y médico preventivo). Analiza la telemetría COMPLETA de hoy comparada contra el rango típico de los últimos ${t.history_days || 30} días:\n${fullContext}\n\nResponde en ESPAÑOL en máximo 2-3 frases directas y concretas (sin saludos, sin markdown, máximo 280 caracteres). Empieza con el semáforo (🟢, 🟡 o 🔴) y di explícitamente a qué hay que ponerle cuidado hoy (ej. déficit de sueño profundo, SpO2 bajo, alteraciones respiratorias altas, posible inicio de gripa si subió temperatura/respiración, fatiga simpática, sedentarismo o luz verde si todo está en rango típico) + 1 acción práctica concreta para hoy.`;
 
     const res = await fetch(url, {
       method: 'POST',
