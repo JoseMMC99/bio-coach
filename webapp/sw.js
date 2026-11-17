@@ -1,4 +1,4 @@
-// Service Worker para BioCoach PWA
+// Service Worker for BioCoach PWA
 const CACHE_NAME = 'biocoach-v1';
 const ASSETS_TO_CACHE = [
   '/',
@@ -28,13 +28,13 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Peticiones de API siempre van a la red
+  // API requests always bypass cache and go to network
   if (event.request.url.includes('/api/')) {
     event.respondWith(fetch(event.request));
     return;
   }
 
-  // Assets estáticos usan Cache-First con Network Fallback
+  // Static assets use Cache-First strategy with Network Fallback
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       return cachedResponse || fetch(event.request);

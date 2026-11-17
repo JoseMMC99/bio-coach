@@ -14,10 +14,10 @@ class TestShortcutPayloadValidator(unittest.TestCase):
         self.validator = ShortcutPayloadValidator()
 
     # --------------------------------------------------------------------------
-    # 1. REPORTE MATUTINO (Morning Recovery)
+    # 1. MORNING RECOVERY PAYLOAD
     # --------------------------------------------------------------------------
     def test_valid_morning_payload_numeric(self):
-        """Payload matutino con tipos numéricos estándar."""
+        """Morning recovery payload with standard numeric floats."""
         raw = {
             "sleep_hours": 7.5,
             "deep_sleep_hours": 1.5,
@@ -32,7 +32,7 @@ class TestShortcutPayloadValidator(unittest.TestCase):
         self.assertEqual(cleaned.hrv_ms, 62.0)
 
     def test_edge_case_string_and_comma_decimals(self):
-        """Apple Shortcuts en español suele enviar strings con comas ('7,5' en lugar de 7.5)."""
+        """Apple Shortcuts in Spanish locale sends string numbers with commas ('7,5' instead of 7.5)."""
         raw = {
             "sleep_hours": "7,5",
             "deep_sleep_hours": "1,4",
@@ -46,11 +46,11 @@ class TestShortcutPayloadValidator(unittest.TestCase):
         self.assertEqual(cleaned.hrv_ms, 65.5)
 
     def test_edge_case_empty_strings_from_shortcuts(self):
-        """Atajos envía '' cuando una muestra de Salud está ausente."""
+        """Shortcuts sends empty string '' when HealthKit sample is absent."""
         raw = {
             "sleep_hours": "7.0",
             "resting_hr": "55",
-            "hrv_ms": "", # Muestra ausente
+            "hrv_ms": "", # Absent sample
             "respiratory_rate": ""
         }
         cleaned = self.validator.validate_morning_payload(raw)
@@ -59,7 +59,7 @@ class TestShortcutPayloadValidator(unittest.TestCase):
         self.assertIsNone(cleaned.respiratory_rate)
 
     def test_edge_case_empty_or_malformed_payload(self):
-        """Payload totalmente vacío o no diccionario debe lanzar ValidationError."""
+        """Empty or non-dictionary payload must raise ValidationError."""
         with self.assertRaises(ValidationError):
             self.validator.validate_morning_payload({})
 
@@ -67,9 +67,10 @@ class TestShortcutPayloadValidator(unittest.TestCase):
             self.validator.validate_morning_payload("not_a_dict")
 
     # --------------------------------------------------------------------------
-    # 2. POST-ENTRENAMIENTO (Workout)
+    # 2. POST-WORKOUT PAYLOAD
     # --------------------------------------------------------------------------
     def test_valid_workout_payload(self):
+        """Valid workout session payload."""
         raw = {
             "workout_type": "Fuerza Tradicional",
             "duration_minutes": "52",
@@ -85,7 +86,7 @@ class TestShortcutPayloadValidator(unittest.TestCase):
         self.assertEqual(cleaned["recovery_hr_1min"], 22)
 
     def test_workout_duration_outlier_clamping(self):
-        """Si el usuario olvidó detener el entreno (ej. 800 minutos), se clampea."""
+        """Excessive workout duration (e.g. forgot to stop watch, 850m) must be clamped."""
         raw = {
             "workout_type": "Carrera",
             "duration_minutes": 850.0,
@@ -94,18 +95,19 @@ class TestShortcutPayloadValidator(unittest.TestCase):
             "max_hr": 175
         }
         cleaned = self.validator.validate_workout_payload(raw)
-        self.assertLessEqual(cleaned["duration_minutes"], 360.0) # Máx 6 horas
+        self.assertLessEqual(cleaned["duration_minutes"], 360.0) # Capped at 6 hours
 
     def test_workout_missing_required_fields(self):
-        """Falta workout_type o pulsaciones."""
+        """Missing mandatory workout_type or heart rate fields."""
         raw = {"duration_minutes": 45}
         with self.assertRaises(ValidationError):
             self.validator.validate_workout_payload(raw)
 
     # --------------------------------------------------------------------------
-    # 3. CHEQUEO DE PULSO / PALPITACIONES (Instant HR)
+    # 3. ON-DEMAND PULSE / PALPITATIONS CHECK
     # --------------------------------------------------------------------------
     def test_valid_instant_hr_payload(self):
+        """Valid on-demand heart rate check payload."""
         raw = {
             "current_hr": "78",
             "user_sensation": "Me siento un poco agitado en el trabajo"
@@ -115,7 +117,7 @@ class TestShortcutPayloadValidator(unittest.TestCase):
         self.assertIn("agitado", cleaned["user_sensation"])
 
     def test_instant_hr_invalid_pulse(self):
-        """Pulso 0 o negativo debe fallar."""
+        """Zero or negative pulse must fail validation."""
         with self.assertRaises(ValidationError):
             self.validator.validate_instant_hr_payload({"current_hr": 0})
 
@@ -123,9 +125,10 @@ class TestShortcutPayloadValidator(unittest.TestCase):
             self.validator.validate_instant_hr_payload({"current_hr": -15})
 
     # --------------------------------------------------------------------------
-    # 4. NUTRICIÓN / DICTADO POR VOZ (Nutrition Log)
+    # 4. NUTRITION VOICE / TEXT LOGGING
     # --------------------------------------------------------------------------
     def test_valid_nutrition_payload(self):
+        """Valid nutrition meal entry."""
         raw = {
             "raw_text": "Almorcé 200g de pechuga con puré de papa y ensalada verde",
             "meal_type": "almuerzo"
@@ -135,7 +138,7 @@ class TestShortcutPayloadValidator(unittest.TestCase):
         self.assertEqual(cleaned["meal_type"], "almuerzo")
 
     def test_nutrition_empty_text(self):
-        """Texto vacío por fallo en dictado de Siri."""
+        """Empty text from failed Siri voice dictation must raise error."""
         with self.assertRaises(ValidationError):
             self.validator.validate_nutrition_payload({"raw_text": "   "})
 

@@ -33,7 +33,7 @@ class TestGeminiOrchestrator(unittest.TestCase):
         )
 
     def test_build_morning_prompt_contains_metrics(self):
-        """El prompt debe contener los números calculados de forma clara."""
+        """Prompt must clearly incorporate pre-calculated metrics."""
         ctx = OrchestratorContext(
             recovery=self.sample_recovery,
             metrics=self.sample_metrics,
@@ -50,7 +50,7 @@ class TestGeminiOrchestrator(unittest.TestCase):
         self.assertIn("Hipertrofia", prompt)
 
     def test_day_one_prompt_flags_provisional(self):
-        """Cuando es el día 1, el prompt debe avisarle a Gemini que no hay historial previo."""
+        """Prompt must flag provisional status when no historical baseline exists."""
         provisional_recovery = RecoveryResult(
             score=70,
             traffic_light="YELLOW",
@@ -71,7 +71,7 @@ class TestGeminiOrchestrator(unittest.TestCase):
 
     @patch("backend.orchestrator.GeminiOrchestrator._call_gemini_api")
     def test_generate_morning_verdict_success(self, mock_api):
-        """Verifica que el orquestador formatea correctamente la respuesta de Gemini."""
+        """Verifies successful parsing and formatting of Gemini AI verdict."""
         mock_api.return_value = (
             "🟢 Sistema en verde (Recuperación 82%).\n"
             "Hoy: Día excelente para sesión pesada de piernas o series de velocidad.\n"
@@ -87,12 +87,12 @@ class TestGeminiOrchestrator(unittest.TestCase):
         verdict = self.orchestrator.generate_morning_verdict(ctx)
 
         self.assertIn("82%", verdict.watch_summary)
-        self.assertTrue(len(verdict.watch_summary) <= 300) # Adecuado para pantalla de reloj
+        self.assertTrue(len(verdict.watch_summary) <= 300) # Formatted for Apple Watch display
         self.assertEqual(verdict.traffic_light, "GREEN")
 
     @patch("backend.orchestrator.GeminiOrchestrator._call_gemini_api")
     def test_offline_fallback_on_api_error(self, mock_api):
-        """Si Gemini falla o la red cae, el orquestador debe dar un veredicto algorítmico local."""
+        """When Gemini API or network fails, orchestrator must generate deterministic fallback."""
         mock_api.side_effect = Exception("HTTP 503 Service Unavailable")
 
         ctx = OrchestratorContext(

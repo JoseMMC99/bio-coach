@@ -7,14 +7,14 @@ document.addEventListener('DOMContentLoaded', () => {
   initChat();
 });
 
-// 1. Registro de PWA Service Worker
+// 1. PWA Service Worker Registration
 function initServiceWorker() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
 }
 
-// 2. Navegación entre Pestañas (Estilo iOS)
+// 2. Tab Navigation (iOS Native Style)
 function initNavigation() {
   const btnDashboard = document.getElementById('nav-btn-dashboard');
   const btnChat = document.getElementById('nav-btn-chat');
@@ -36,7 +36,7 @@ function initNavigation() {
   });
 }
 
-// 3. Carga y renderizado del Dashboard
+// 3. Dashboard Data Fetching and Rendering
 async function initDashboard() {
   const dateEl = document.getElementById('current-date');
   const now = new Date();
@@ -61,7 +61,7 @@ function renderDashboard(data) {
     return;
   }
 
-  // Hero Card
+  // Hero Score Card
   document.getElementById('hero-score').textContent = today.score || '--';
   const statusText = document.getElementById('hero-status-text');
   const iconEl = document.getElementById('score-icon');
@@ -84,15 +84,15 @@ function renderDashboard(data) {
     document.getElementById('gemini-daily-verdict').textContent = `"${today.verdict}"`;
   }
 
-  // Métricas Clave
+  // Key metric cards
   document.getElementById('card-hrv').innerHTML = `${today.hrv || '--'} <span class="text-xs font-normal text-slate-400">ms</span>`;
   document.getElementById('card-rhr').innerHTML = `${today.rhr || '--'} <span class="text-xs font-normal text-slate-400">bpm</span>`;
   document.getElementById('card-sleep').innerHTML = `${today.sleep || '--'} <span class="text-xs font-normal text-slate-400">h</span>`;
 
-  // Renderizar Barras de Tendencia Semanal
+  // Render 7-day trend bars
   renderChartBars(data.trends);
 
-  // Renderizar Entrenamientos Recientes
+  // Render recent workout cards
   renderWorkouts(data.recent_workouts);
 }
 
@@ -149,7 +149,7 @@ function renderWorkouts(workouts) {
   });
 }
 
-// 4. Lógica de Chat con Gemini
+// 4. Conversational Gemini Coach Chat Logic
 function initChat() {
   const form = document.getElementById('chat-form');
   const input = document.getElementById('chat-input');

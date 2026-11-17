@@ -1,19 +1,19 @@
 """
-Validador y sanitizador de payloads provenientes de Apple Shortcuts.
-Maneja coerción de tipos (ej. strings con comas '7,5'), valores ausentes y límites biológicos.
+Validator and sanitizer for Apple Shortcuts payloads.
+Handles type coercion (e.g. Spanish comma decimals '7,5'), missing metrics, and physiological bounds.
 """
 from typing import Any, Dict, Optional
 from backend.physiology import DailyMetrics
 
 class ValidationError(ValueError):
-    """Excepción lanzada cuando un payload no cumple los requisitos mínimos."""
+    """Raised when an incoming shortcut payload fails validation criteria."""
     pass
 
 class ShortcutPayloadValidator:
-    """Valida, limpia y normaliza entradas de Apple Health y Atajos."""
+    """Validates, sanitizes and coerces data received from Apple HealthKit and Shortcuts."""
 
     def validate_morning_payload(self, raw: Any) -> DailyMetrics:
-        """Valida y limpia el reporte matutino."""
+        """Validates and cleans the morning recovery payload."""
         if not isinstance(raw, dict) or not raw:
             raise ValidationError("El payload matutino debe ser un diccionario no vacío.")
 
@@ -25,7 +25,7 @@ class ShortcutPayloadValidator:
         resp = self._coerce_float(raw.get("respiratory_rate"))
         temp = self._coerce_float(raw.get("wrist_temp_deviation"))
 
-        # Validar que al menos un dato biométrico útil esté presente
+        # Require at least one key biometric indicator to be present
         if all(v is None for v in [sleep, rhr, hrv]):
             raise ValidationError("Se requiere al menos una métrica clave: sueño, pulso en reposo o HRV.")
 
@@ -40,7 +40,7 @@ class ShortcutPayloadValidator:
         )
 
     def validate_workout_payload(self, raw: Any) -> Dict[str, Any]:
-        """Valida y limpia el reporte de finalización de entrenamiento."""
+        """Validates and cleans the post-workout payload."""
         if not isinstance(raw, dict) or not raw:
             raise ValidationError("El payload de entrenamiento debe ser un diccionario no vacío.")
 
@@ -52,7 +52,7 @@ class ShortcutPayloadValidator:
         if duration is None or duration <= 0:
             raise ValidationError("'duration_minutes' debe ser un número positivo.")
 
-        # Clampear duración máxima razonable (6 horas) por si el usuario olvidó detener el reloj
+        # Clamp max duration to 6 hours in case user forgot to stop the session
         duration = min(360.0, duration)
 
         avg_hr = self._coerce_int(raw.get("avg_hr"))
@@ -60,7 +60,7 @@ class ShortcutPayloadValidator:
             raise ValidationError("'avg_hr' es obligatorio y debe ser positivo.")
 
         max_hr = self._coerce_int(raw.get("max_hr")) or avg_hr
-        max_hr = max(avg_hr, max_hr) # max_hr nunca puede ser menor a avg_hr
+        max_hr = max(avg_hr, max_hr) # Max HR cannot be lower than average HR
 
         calories = self._coerce_int(raw.get("active_calories")) or 0
         rec_hr = self._coerce_int(raw.get("recovery_hr_1min"))
@@ -75,7 +75,7 @@ class ShortcutPayloadValidator:
         }
 
     def validate_instant_hr_payload(self, raw: Any) -> Dict[str, Any]:
-        """Valida chequeo instantáneo de pulsaciones."""
+        """Validates on-demand pulse check payload."""
         if not isinstance(raw, dict) or not raw:
             raise ValidationError("El payload de pulso debe ser un diccionario no vacío.")
 
@@ -93,7 +93,7 @@ class ShortcutPayloadValidator:
         }
 
     def validate_nutrition_payload(self, raw: Any) -> Dict[str, Any]:
-        """Valida registro de comida por texto/dictado."""
+        """Validates nutrition meal voice/text entry."""
         if not isinstance(raw, dict) or not raw:
             raise ValidationError("El payload de nutrición debe ser un diccionario no vacío.")
 
@@ -109,7 +109,7 @@ class ShortcutPayloadValidator:
         }
 
     def _coerce_float(self, val: Any) -> Optional[float]:
-        """Convierte cadenas, números o comas decimales a float seguro."""
+        """Safely coerces string, numeric, or comma-delimited decimals to float."""
         if val is None:
             return None
         if isinstance(val, (int, float)):
@@ -117,7 +117,7 @@ class ShortcutPayloadValidator:
         val_str = str(val).strip()
         if not val_str:
             return None
-        # Reemplazar coma decimal por punto (formato español de iOS)
+        # Replace regional comma with standard period (Spanish iOS formatting)
         val_str = val_str.replace(",", ".")
         try:
             return float(val_str)
@@ -125,6 +125,6 @@ class ShortcutPayloadValidator:
             raise ValidationError(f"No se pudo convertir '{val}' a número decimal.")
 
     def _coerce_int(self, val: Any) -> Optional[int]:
-        """Convierte cadenas o floats a entero seguro."""
+        """Safely coerces input to integer."""
         f_val = self._coerce_float(val)
         return int(round(f_val)) if f_val is not None else None

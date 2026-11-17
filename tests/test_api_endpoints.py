@@ -13,13 +13,13 @@ class TestBioCoachAPIHandler(unittest.TestCase):
         self.api = BioCoachAPIHandler(service=self.mock_service)
 
     def test_health_check_endpoint(self):
-        """GET /health devuelve 200 y status ok."""
+        """GET /health returns 200 and healthy status."""
         status_code, body = self.api.handle_request("GET", "/health", None)
         self.assertEqual(status_code, 200)
         self.assertEqual(body["status"], "healthy")
 
     def test_recovery_endpoint_success(self):
-        """POST /api/v1/recovery ejecuta pipeline y devuelve veredicto."""
+        """POST /api/v1/recovery executes pipeline and returns watch notification."""
         self.mock_service.process_morning_recovery.return_value = {
             "status": "success",
             "recovery_score": 85,
@@ -39,7 +39,7 @@ class TestBioCoachAPIHandler(unittest.TestCase):
         self.assertIn("watch_notification", body)
 
     def test_workout_endpoint_success(self):
-        """POST /api/v1/workout procesa fin de entrenamiento."""
+        """POST /api/v1/workout processes workout completion payload."""
         self.mock_service.process_workout_completion.return_value = {
             "status": "success",
             "strain_score": 14.2,
@@ -59,7 +59,7 @@ class TestBioCoachAPIHandler(unittest.TestCase):
         self.assertEqual(body["status"], "success")
 
     def test_hr_check_endpoint_success(self):
-        """POST /api/v1/hr-check procesa chequeo de palpitaciones."""
+        """POST /api/v1/hr-check processes instant pulse check."""
         self.mock_service.process_instant_hr_check.return_value = {
             "status": "success",
             "current_hr": 72,
@@ -73,20 +73,20 @@ class TestBioCoachAPIHandler(unittest.TestCase):
         self.assertEqual(body["status"], "success")
 
     def test_invalid_json_or_empty_body(self):
-        """Petición POST sin body o con body no diccionario devuelve 400 Bad Request."""
+        """POST request without body or non-dictionary body returns 400 Bad Request."""
         status_code, body = self.api.handle_request("POST", "/api/v1/recovery", None)
         self.assertEqual(status_code, 400)
         self.assertIn("error", body)
 
     def test_validation_error_returns_422(self):
-        """Payload con datos inconsistentes devuelve 422 Unprocessable Entity."""
+        """Payload with inconsistent types returns 422 Unprocessable Entity."""
         payload = {"sleep_hours": "invalid_number", "resting_hr": "55"}
         status_code, body = self.api.handle_request("POST", "/api/v1/recovery", payload)
         self.assertEqual(status_code, 422)
         self.assertIn("validation_error", body)
 
     def test_route_not_found_returns_404(self):
-        """Ruta desconocida devuelve 404 Not Found."""
+        """Unknown route returns 404 Not Found."""
         status_code, body = self.api.handle_request("POST", "/api/v1/non_existent", {})
         self.assertEqual(status_code, 404)
 

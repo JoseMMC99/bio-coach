@@ -1,6 +1,6 @@
 """
-Script de verificación de conectividad y estado de Supabase.
-Carga variables de entorno desde .env sin exponer secretos.
+Connectivity and health check script for Supabase.
+Safely loads environment variables from .env without exposing credentials.
 """
 import os
 import sys
@@ -9,9 +9,10 @@ import urllib.request
 import urllib.error
 
 def load_env():
+    """Load key-value pairs from .env into a dictionary."""
     env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
     if not os.path.exists(env_path):
-        print("⚠️ Archivo .env no encontrado. Copia .env.example como .env")
+        print("⚠️ Warning: .env file not found. Please copy .env.example to .env")
         return {}
     env = {}
     with open(env_path, "r", encoding="utf-8") as f:
@@ -23,12 +24,13 @@ def load_env():
     return env
 
 def test_supabase():
+    """Verify read access to Supabase PostgREST endpoint."""
     env = load_env()
     url = env.get("SUPABASE_URL")
     key = env.get("SUPABASE_PUBLISHABLE_KEY")
 
     if not url or not key:
-        print("❌ Error: SUPABASE_URL o SUPABASE_PUBLISHABLE_KEY faltan en .env")
+        print("❌ Error: SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY missing in .env")
         sys.exit(1)
 
     print(f"📡 Conectando a Supabase ({url})...")

@@ -20,8 +20,8 @@ class TestBioCoachService(unittest.TestCase):
     @patch("backend.service.BioCoachService._save_recovery_record")
     @patch("backend.orchestrator.GeminiOrchestrator.generate_morning_verdict")
     def test_pipeline_morning_recovery_with_history(self, mock_gemini, mock_save, mock_history):
-        """Pipeline completo: lee 3 días previos, calcula línea base móvil y emite veredicto."""
-        # Simular 3 días previos de historial en Supabase
+        """End-to-end morning pipeline: fetches 3 prior days, computes baseline and outputs verdict."""
+        # Mock 3 prior days of historical records in Supabase
         mock_history.return_value = [
             {"recorded_date": "2026-11-15", "hrv_ms": 60.0, "resting_hr": 54.0, "sleep_hours": 7.5},
             {"recorded_date": "2026-11-14", "hrv_ms": 58.0, "resting_hr": 55.0, "sleep_hours": 7.0},
@@ -53,8 +53,8 @@ class TestBioCoachService(unittest.TestCase):
     @patch("backend.service.BioCoachService._save_recovery_record")
     @patch("backend.orchestrator.GeminiOrchestrator.generate_morning_verdict")
     def test_pipeline_morning_recovery_day_one(self, mock_gemini, mock_save, mock_history):
-        """Pipeline cuando no hay historial (Día 1): usa defaults poblacionales."""
-        mock_history.return_value = [] # Cero registros previos
+        """Pipeline behavior on Day 1 without historical database records."""
+        mock_history.return_value = [] # Zero prior records
         mock_save.return_value = {"id": 1}
 
         mock_verdict = MagicMock()
@@ -76,10 +76,10 @@ class TestBioCoachService(unittest.TestCase):
 
     @patch("backend.service.BioCoachService._save_hr_checkin")
     def test_pipeline_instant_hr_check_anxiety_vs_real(self, mock_save):
-        """Pipeline de chequeo de palpitaciones: compara pulso contra reposo de 54 bpm."""
+        """On-demand pulse check: discriminates safe pulse vs acute tachycardia."""
         mock_save.return_value = {"id": 5}
 
-        # Caso: Pulso a 65 bpm con reposo de 55 bpm (Sensación subjetiva / no taquicardia)
+        # Case 1: Pulse 65 bpm with baseline 55 bpm (Subjective sensation / safe rhythm)
         normal_check = self.service.process_instant_hr_check(
             current_hr=65,
             baseline_rhr=55.0,
@@ -88,7 +88,7 @@ class TestBioCoachService(unittest.TestCase):
         self.assertIn("normal", normal_check["watch_guidance"].lower())
         self.assertEqual(normal_check["stress_category"], "LOW")
 
-        # Caso: Pulso a 118 bpm sentado en reposo (Estrés real agudo)
+        # Case 2: Pulse 118 bpm sedentary at rest (Acute real tachycardia)
         high_check = self.service.process_instant_hr_check(
             current_hr=118,
             baseline_rhr=55.0,

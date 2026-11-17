@@ -1,6 +1,6 @@
 """
-Orquestador de Inteligencia Artificial con Google Gemini para BioCoach AI.
-Inyecta contexto biométrico, maneja prompts estructurados y provee fallbacks deterministas.
+AI Orchestrator with Google Gemini for BioCoach AI.
+Injects pre-calculated biometric context into structured prompts and provides deterministic local fallbacks.
 """
 import json
 import urllib.request
@@ -20,13 +20,13 @@ class OrchestratorContext:
 
 @dataclass
 class MorningVerdict:
-    watch_summary: str # Mensaje ultra-conciso para el Apple Watch (máx 300 caracteres)
-    detailed_report: str # Reporte extendido para la WebApp
+    watch_summary: str # Ultra-concise summary formatted for Apple Watch (max 300 characters)
+    detailed_report: str # Full extended report for the WebApp
     traffic_light: str
     is_fallback: bool = False
 
 class GeminiOrchestrator:
-    """Orquesta llamadas a Gemini Flash con contexto biométrico precalculado."""
+    """Orchestrates structured Gemini Flash calls with rich biometric context."""
 
     API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
@@ -34,7 +34,7 @@ class GeminiOrchestrator:
         self.api_key = api_key
 
     def build_morning_prompt(self, ctx: OrchestratorContext) -> str:
-        """Construye el prompt con contexto clínico y fisiológico masticado."""
+        """Constructs prompt with pre-calculated physiological state and baseline data."""
         provisional_note = (
             "NOTA: Es el primer día de uso o línea base PROVISIONAL. Calibra tus respuestas."
             if ctx.recovery.is_provisional else
@@ -70,12 +70,12 @@ Máximo 250 caracteres en total. Sé directo, enérgico y sin relleno.
 """
 
     def generate_morning_verdict(self, ctx: OrchestratorContext) -> MorningVerdict:
-        """Genera el veredicto para el reloj. Si la API falla, usa fallback local determinista."""
+        """Generates verdict for Apple Watch. Falls back gracefully on offline/API failure."""
         prompt = self.build_morning_prompt(ctx)
 
         try:
             raw_response = self._call_gemini_api(prompt)
-            # Asegurar formato limpio para el reloj
+            # Ensure clean string formatting for watch display limits
             clean_summary = raw_response.strip()
             if len(clean_summary) > 300:
                 clean_summary = clean_summary[:297] + "..."
@@ -87,11 +87,11 @@ Máximo 250 caracteres en total. Sé directo, enérgico y sin relleno.
                 is_fallback=False
             )
         except Exception as e:
-            # Fallback determinista local en caso de estar offline o error de API
+            # Deterministic local fallback in case of network or API disruption
             return self._generate_local_fallback(ctx, str(e))
 
     def _call_gemini_api(self, prompt: str) -> str:
-        """Llamada HTTP directa al endpoint de Google Gemini."""
+        """Direct HTTP POST to Google Gemini endpoint."""
         if not self.api_key or self.api_key == "test_mock_key":
             raise ValueError("API Key no configurada o mock.")
 
@@ -117,7 +117,7 @@ Máximo 250 caracteres en total. Sé directo, enérgico y sin relleno.
             return res_json["candidates"][0]["content"]["parts"][0]["text"]
 
     def _generate_local_fallback(self, ctx: OrchestratorContext, error_reason: str) -> MorningVerdict:
-        """Generador local que nunca deja la muñeca del usuario en blanco."""
+        """Algorithmic local generator that never leaves the user wrist blank."""
         score = ctx.recovery.score
         color = ctx.recovery.traffic_light
 

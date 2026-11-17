@@ -16,7 +16,7 @@ class TestWebAppAPI(unittest.TestCase):
         self.api = BioCoachAPIHandler(service=self.mock_service)
 
     def test_dashboard_endpoint_with_history(self):
-        """GET /api/v1/dashboard devuelve métricas consolidadas y tendencias."""
+        """GET /api/v1/dashboard returns consolidated metrics and 7-day trends."""
         self.mock_service.get_dashboard_summary.return_value = {
             "status": "success",
             "today": {
@@ -44,7 +44,7 @@ class TestWebAppAPI(unittest.TestCase):
         self.assertEqual(len(body["trends"]["dates"]), 3)
 
     def test_dashboard_endpoint_empty_db_day_one(self):
-        """GET /api/v1/dashboard maneja base de datos vacía sin crashear."""
+        """GET /api/v1/dashboard handles empty day-1 database gracefully."""
         self.mock_service.get_dashboard_summary.return_value = {
             "status": "success",
             "today": None,
@@ -59,7 +59,7 @@ class TestWebAppAPI(unittest.TestCase):
         self.assertEqual(len(body["trends"]["dates"]), 0)
 
     def test_chat_endpoint_success(self):
-        """POST /api/v1/chat envía mensaje a Gemini inyectando contexto de salud."""
+        """POST /api/v1/chat sends user message to Gemini injecting health history context."""
         self.mock_service.process_coach_chat.return_value = {
             "status": "success",
             "reply": "Tu HRV ha subido un 8% esta semana. Estás tolerando muy bien la carga de entreno."
@@ -73,13 +73,13 @@ class TestWebAppAPI(unittest.TestCase):
         self.assertIn("HRV", body["reply"])
 
     def test_chat_endpoint_empty_message(self):
-        """POST /api/v1/chat con mensaje vacío devuelve 422."""
+        """POST /api/v1/chat with empty or whitespace message returns 422."""
         payload = {"message": "   "}
         status, body = self.api.handle_request("POST", "/api/v1/chat", payload)
         self.assertEqual(status, 422)
 
     def test_pwa_manifest_schema(self):
-        """Verifica que el archivo manifest.json cumple con los estándares PWA de iOS."""
+        """Verifies manifest.json satisfies iOS PWA standalone criteria."""
         manifest_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             "webapp",

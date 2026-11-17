@@ -1,6 +1,6 @@
 """
-Capa de Servicio de BioCoach AI.
-Conecta los datos de Supabase, el motor fisiológico y el orquestador de Gemini.
+Service layer for BioCoach AI.
+Orchestrates Supabase PostgREST persistence, the physiological engine, and Gemini AI reasoning.
 """
 import os
 import json
@@ -19,7 +19,7 @@ from backend.physiology import (
 from backend.orchestrator import GeminiOrchestrator, OrchestratorContext, MorningVerdict
 
 class BioCoachService:
-    """Orquestador integral del backend BioCoach."""
+    """Comprehensive service coordinator for data access, analysis and AI orchestration."""
 
     def __init__(self, supabase_url: str, supabase_key: str, gemini_key: str):
         self.supabase_url = supabase_url.rstrip("/")
@@ -29,26 +29,26 @@ class BioCoachService:
 
     def process_morning_recovery(self, metrics: DailyMetrics, target_date: Optional[str] = None) -> Dict[str, Any]:
         """
-        Pipeline matutino:
-        1. Consulta los últimos 7 días de historial en Supabase.
-        2. Calcula la línea base móvil (rolling average) y deuda de sueño.
-        3. Evalúa la recuperación de hoy con el motor fisiológico.
-        4. Llama a Gemini para generar el veredicto optimizado para el reloj.
-        5. Persiste el resultado en Supabase.
+        Morning recovery pipeline:
+        1. Fetch last 7 days of historical records from Supabase.
+        2. Compute moving baseline profile and rolling sleep debt.
+        3. Evaluate recovery using the physiological engine.
+        4. Request structured watch verdict from Gemini Flash.
+        5. Persist the final record in Supabase daily_recovery table.
         """
         rec_date = target_date or date.today().isoformat()
 
-        # 1. Obtener historial previo para calcular línea base
+        # 1. Fetch historical records to compute rolling baseline
         history = self._fetch_recent_history(days=7)
         profile, sleep_history = self._compute_rolling_baseline(history)
 
-        # 2. Deuda de sueño acumulada
+        # 2. Accumulated rolling sleep debt
         sleep_debt = self.engine.calculate_sleep_debt(sleep_history, target_hours=profile.target_sleep_hours)
 
-        # 3. Cálculo fisiológico
+        # 3. Physiological calculation
         recovery = self.engine.calculate_recovery(metrics, profile)
 
-        # 4. Orquestación con Gemini
+        # 4. Gemini AI orchestration
         ctx = OrchestratorContext(
             recovery=recovery,
             metrics=metrics,
@@ -57,7 +57,7 @@ class BioCoachService:
         )
         verdict = self.orchestrator.generate_morning_verdict(ctx)
 
-        # 5. Guardar en Supabase
+        # 5. Persist to Supabase
         db_payload = {
             "recorded_date": rec_date,
             "sleep_hours": metrics.sleep_hours,
@@ -92,10 +92,9 @@ class BioCoachService:
         user_sensation: str = "rutina"
     ) -> Dict[str, Any]:
         """
-        Pipeline de chequeo de palpitaciones o estrés a demanda.
-        Discrimina objetivamente si las pulsaciones están dentro del rango seguro.
+        On-demand pulse and stress check pipeline.
+        Objectively discriminates safe resting heart rate vs acute tachycardia/stress.
         """
-        # Si no se provee baseline, usar la almacenada o default
         base_hr = baseline_rhr or 58.0
         stress = self.engine.calculate_stress_index(
             current_hr=current_hr,
@@ -120,7 +119,7 @@ class BioCoachService:
                 "Inicia respiración: inhala profundo 4s, sostén 4s, exhala en 4s."
             )
 
-        # Guardar en base de datos
+        # Persist to hr_checkins
         db_payload = {
             "current_hr": current_hr,
             "stress_level": stress.score,
@@ -146,7 +145,7 @@ class BioCoachService:
         max_hr: int,
         recovery_hr_1min: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Pipeline post-entrenamiento: calcula carga y horas de recuperación."""
+        """Post-workout pipeline: computes strain score, recovery hours and nutrition advice."""
         analysis = self.engine.analyze_workout(
             duration_minutes=duration_minutes,
             avg_hr=avg_hr,
@@ -181,10 +180,9 @@ class BioCoachService:
         }
 
     def get_dashboard_summary(self, days: int = 7) -> Dict[str, Any]:
-        """Agrega métricas consolidadas para el Dashboard de la WebApp."""
+        """Aggregates consolidated biometric trends and workouts for the WebApp Dashboard."""
         history = self._fetch_recent_history(days=days)
         workouts = self._fetch_recent_workouts(limit=5)
-        today_iso = date.today().isoformat()
 
         if not history:
             return {
@@ -195,7 +193,7 @@ class BioCoachService:
                 "recent_workouts": []
             }
 
-        # Invertir para orden cronológico en gráficas
+        # Reverse for chronological ordering in charts
         chronological = list(reversed(history))
         latest = history[0]
 
@@ -234,7 +232,7 @@ class BioCoachService:
         }
 
     def process_coach_chat(self, user_message: str) -> Dict[str, Any]:
-        """Procesa una consulta libre en el chat inyectando el contexto de salud."""
+        """Handles conversational athlete Q&A with live health context injection."""
         if not user_message or not user_message.strip():
             return {"status": "error", "message": "El mensaje no puede estar vacío."}
 
@@ -278,23 +276,11 @@ Responde de manera empática, científica y accionable. Relaciona tus consejos d
             "reply": reply.strip()
         }
 
-    def _fetch_recent_workouts(self, limit: int = 5) -> List[Dict[str, Any]]:
-        """Consulta los últimos entrenamientos registrados."""
-        endpoint = f"{self.supabase_url}/rest/v1/workouts?order=created_at.desc&limit={limit}"
-        headers = self._get_headers()
-        req = urllib.request.Request(endpoint, headers=headers, method="GET")
-
-        try:
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                return json.loads(resp.read().decode("utf-8"))
-        except Exception:
-            return []
-
     # --------------------------------------------------------------------------
-    # MÉTODOS AUXILIARES Y ACCESO A SUPABASE (PostgREST)
+    # AUXILIARY METHODS AND POSTGREST ACCESS
     # --------------------------------------------------------------------------
     def _compute_rolling_baseline(self, history: List[Dict[str, Any]]) -> (BaselineProfile, List[float]):
-        """Calcula promedios móviles a partir de los registros previos."""
+        """Computes moving averages from previous recovery records."""
         if not history:
             return BaselineProfile(resting_hr=None, hrv_ms=None), []
 
@@ -313,7 +299,7 @@ Responde de manera empática, científica y accionable. Relaciona tus consejos d
         return profile, sleep_hours
 
     def _fetch_recent_history(self, days: int = 7) -> List[Dict[str, Any]]:
-        """Consulta los últimos N registros ordenados cronológicamente."""
+        """Queries the last N daily_recovery records in descending chronological order."""
         endpoint = f"{self.supabase_url}/rest/v1/daily_recovery?order=recorded_date.desc&limit={days}"
         headers = self._get_headers()
         req = urllib.request.Request(endpoint, headers=headers, method="GET")
@@ -324,8 +310,20 @@ Responde de manera empática, científica y accionable. Relaciona tus consejos d
         except Exception:
             return []
 
+    def _fetch_recent_workouts(self, limit: int = 5) -> List[Dict[str, Any]]:
+        """Queries the last N workout records."""
+        endpoint = f"{self.supabase_url}/rest/v1/workouts?order=created_at.desc&limit={limit}"
+        headers = self._get_headers()
+        req = urllib.request.Request(endpoint, headers=headers, method="GET")
+
+        try:
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except Exception:
+            return []
+
     def _save_recovery_record(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Inserta o actualiza un registro en daily_recovery."""
+        """Inserts a recovery record into daily_recovery."""
         endpoint = f"{self.supabase_url}/rest/v1/daily_recovery"
         headers = self._get_headers(prefer="return=representation")
         data = json.dumps(payload).encode("utf-8")
@@ -339,6 +337,7 @@ Responde de manera empática, científica y accionable. Relaciona tus consejos d
             return {}
 
     def _save_hr_checkin(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Inserts an on-demand heart rate check into hr_checkins."""
         endpoint = f"{self.supabase_url}/rest/v1/hr_checkins"
         headers = self._get_headers(prefer="return=representation")
         data = json.dumps(payload).encode("utf-8")
@@ -352,6 +351,7 @@ Responde de manera empática, científica y accionable. Relaciona tus consejos d
             return {}
 
     def _save_workout_record(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Inserts a session record into workouts table."""
         endpoint = f"{self.supabase_url}/rest/v1/workouts"
         headers = self._get_headers(prefer="return=representation")
         data = json.dumps(payload).encode("utf-8")
@@ -365,6 +365,7 @@ Responde de manera empática, científica y accionable. Relaciona tus consejos d
             return {}
 
     def _get_headers(self, prefer: Optional[str] = None) -> Dict[str, str]:
+        """Returns standard authentication headers for Supabase PostgREST."""
         headers = {
             "apikey": self.supabase_key,
             "Authorization": f"Bearer {self.supabase_key}",

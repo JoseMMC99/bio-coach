@@ -1,6 +1,6 @@
 """
-Motor Fisiológico y Algoritmos de Rendimiento para BioCoach AI.
-Calcula Recuperación, Balance del Sistema Nervioso Autónomo, Deuda de Sueño y Carga.
+Physiological modeling and biometric engine for BioCoach AI.
+Calculates Daily Recovery, Autonomic Nervous System (ANS) Balance, Sleep Debt, and Workout Strain.
 """
 from dataclasses import dataclass
 from typing import Optional, List
@@ -23,44 +23,44 @@ class BaselineProfile:
 
 @dataclass
 class RecoveryResult:
-    score: int # 0 a 100
+    score: int # 0 to 100
     traffic_light: str # 'GREEN', 'YELLOW', 'RED'
     ans_state: str # 'PARASYMPATHETIC_DOMINANT', 'SYMPATHETIC_DOMINANT', 'BALANCED'
-    summary: str
+    summary: str # User-facing summary in Spanish
     is_provisional: bool = False
     is_partial: bool = False
 
 @dataclass
 class StressResult:
-    score: int # 0 a 100
+    score: int # 0 to 100
     category: str # 'LOW', 'MODERATE', 'HIGH', 'SEVERE'
-    summary: str
+    summary: str # User-facing summary in Spanish
 
 @dataclass
 class WorkoutAnalysis:
-    strain_score: float # 0.0 a 21.0
+    strain_score: float # 0.0 to 21.0
     recommended_recovery_hours: int
-    summary: str
+    summary: str # User-facing summary in Spanish
 
 class PhysiologyEngine:
-    """Motor central de cálculo biométrico y modelado fisiológico."""
+    """Core physiological computation and biomarker analysis engine."""
 
-    # Constantes poblacionales por defecto para usuarios sin historial (Día 1)
+    # Population defaults for day-1 users with no baseline history
     DEFAULT_RHR = 60.0
     DEFAULT_HRV = 50.0
     DEFAULT_TARGET_SLEEP = 8.0
 
     def calculate_recovery(self, metrics: DailyMetrics, profile: BaselineProfile) -> RecoveryResult:
         """
-        Calcula la puntuación de recuperación diaria (0-100) ponderando:
-        - Variabilidad Cardíaca (HRV): 45%
-        - Frecuencia en reposo (RHR): 25%
-        - Duración y fases de sueño: 30%
+        Calculates daily recovery score (0-100) weighting:
+        - Heart Rate Variability (HRV): 45%
+        - Resting Heart Rate (RHR): 25%
+        - Sleep duration and architecture: 30%
         """
         is_provisional = False
         is_partial = False
 
-        # 1. Resolver líneas base (Manejo de Día 1 / Historial vacío)
+        # 1. Resolve baselines (Day-1 / empty historical profile handling)
         base_rhr = profile.resting_hr if profile.resting_hr is not None else self.DEFAULT_RHR
         base_hrv = profile.hrv_ms if profile.hrv_ms is not None else self.DEFAULT_HRV
         target_sleep = profile.target_sleep_hours if profile.target_sleep_hours else self.DEFAULT_TARGET_SLEEP
@@ -68,37 +68,35 @@ class PhysiologyEngine:
         if profile.resting_hr is None or profile.hrv_ms is None:
             is_provisional = True
 
-        # 2. Filtrado y clampeo de outliers (Artefactos de sensores)
+        # 2. Sensor outlier filtering and clamping
         hrv = self._clamp(metrics.hrv_ms, 5.0, 200.0) if metrics.hrv_ms is not None else None
         rhr = self._clamp(metrics.resting_hr, 35.0, 140.0) if metrics.resting_hr is not None else None
         sleep = self._clamp(metrics.sleep_hours, 0.0, 16.0) if metrics.sleep_hours is not None else None
 
-        # 3. Puntuación de componentes individuales
+        # 3. Individual component scoring
         weights = {}
 
-        # Componente HRV (45 puntos)
+        # HRV component (45 points)
         if hrv is not None and base_hrv > 0:
             hrv_ratio = hrv / base_hrv
-            # Ratio 1.0 = 80 pts. >1.2 = 100 pts. <0.7 = 30 pts.
             hrv_score = self._clamp(hrv_ratio * 80.0, 10.0, 100.0)
             weights["hrv"] = (hrv_score, 0.45)
         else:
             is_partial = True
 
-        # Componente Frecuencia en Reposo (25 puntos)
+        # Resting Heart Rate component (25 points)
         if rhr is not None and base_rhr > 0:
-            # Si RHR es más bajo que la base = mejor. Si es más alto = peor.
             delta_rhr = rhr - base_rhr
             rhr_score = self._clamp(80.0 - (delta_rhr * 4.0), 10.0, 100.0)
             weights["rhr"] = (rhr_score, 0.25)
         else:
             is_partial = True
 
-        # Componente Sueño (30 puntos)
+        # Sleep component (30 points)
         if sleep is not None and target_sleep > 0:
             sleep_ratio = sleep / target_sleep
             sleep_score = self._clamp(sleep_ratio * 80.0, 10.0, 100.0)
-            # Bonus por fases profundas y REM si están presentes
+            # Bonus for deep and REM sleep stages if present
             if metrics.deep_sleep_hours and metrics.deep_sleep_hours >= 1.2:
                 sleep_score = min(100.0, sleep_score + 5.0)
             if metrics.rem_sleep_hours and metrics.rem_sleep_hours >= 1.5:
@@ -107,9 +105,9 @@ class PhysiologyEngine:
         else:
             is_partial = True
 
-        # 4. Cálculo final normalizado
+        # 4. Normalized weighted calculation
         if not weights:
-            # Fallback extremo: ningún sensor entregó datos válidos
+            # Extreme fallback: no valid sensors delivered data
             return RecoveryResult(
                 score=50,
                 traffic_light="YELLOW",
@@ -123,7 +121,7 @@ class PhysiologyEngine:
         final_score = int(round(sum(score * w for score, w in weights.values()) / total_weight))
         final_score = self._clamp(final_score, 0, 100)
 
-        # 5. Determinación de Semáforo
+        # 5. Traffic light classification
         if final_score >= 75:
             traffic_light = "GREEN"
         elif final_score >= 50:
@@ -131,7 +129,7 @@ class PhysiologyEngine:
         else:
             traffic_light = "RED"
 
-        # 6. Determinación de Estado del Sistema Nervioso Autónomo (SNA)
+        # 6. Autonomic Nervous System (ANS) tone determination
         effective_hrv = hrv if hrv is not None else base_hrv
         effective_rhr = rhr if rhr is not None else base_rhr
 
@@ -142,6 +140,7 @@ class PhysiologyEngine:
         else:
             ans_state = "BALANCED"
 
+        # User-facing summary in Spanish
         summary_parts = []
         if is_provisional:
             summary_parts.append("Evaluación provisional (calibrando línea base).")
@@ -162,7 +161,7 @@ class PhysiologyEngine:
         )
 
     def calculate_sleep_debt(self, sleep_history_hours: List[float], target_hours: float = 8.0) -> float:
-        """Calcula el déficit acumulado de horas de sueño."""
+        """Calculates accumulated sleep deficit against target hours."""
         if not sleep_history_hours:
             return 0.0
         total_debt = sum(max(0.0, target_hours - h) for h in sleep_history_hours)
@@ -176,17 +175,16 @@ class PhysiologyEngine:
         baseline_hrv: Optional[float] = None
     ) -> StressResult:
         """
-        Calcula el índice de estrés biológico instantáneo (0 a 100).
-        Basado en la elevación del pulso sobre reposo y la supresión de HRV.
+        Calculates instantaneous biological stress index (0 to 100).
+        Derived from heart rate elevation above baseline and HRV suppression.
         """
         base_hr = max(30.0, baseline_hr)
         hr_elevation = max(0.0, float(current_hr) - base_hr)
 
-        # Componente frecuencia cardíaca (0 a 60 pts)
-        # 30 bpm sobre reposo = 50 pts
+        # Heart rate component (0 to 60 pts)
         hr_component = min(60.0, (hr_elevation / 35.0) * 50.0)
 
-        # Componente HRV (0 a 40 pts)
+        # HRV component (0 to 40 pts)
         hrv_component = 15.0
         if current_hrv and baseline_hrv and baseline_hrv > 0:
             suppression = max(0.0, baseline_hrv - current_hrv) / baseline_hrv
@@ -194,6 +192,7 @@ class PhysiologyEngine:
 
         total_stress = int(round(min(100.0, max(0.0, hr_component + hrv_component))))
 
+        # User-facing categories and descriptions in Spanish
         if total_stress < 30:
             category = "LOW"
             summary = "Estrés biológico bajo. Sistema en calma."
@@ -218,25 +217,24 @@ class PhysiologyEngine:
         recovery_hr_1min: Optional[int] = None
     ) -> WorkoutAnalysis:
         """
-        Calcula la carga del entrenamiento (*strain* de 0 a 21) y tiempo de recuperación recomendado.
-        Utiliza el concepto de reserva de frecuencia cardíaca y volumen calórico.
+        Calculates cardiovascular strain score (0 to 21) and recommended recovery time.
+        Uses Heart Rate Reserve (HRR) and caloric expenditure modeling.
         """
-        # Estimación fisiológica de intensidad sobre reposo típico (60 bpm)
         resting_ref = 60.0
         max_ref = max(150.0, float(max_hr))
-        
-        # Fracción de reserva cardíaca (0.0 a 1.0)
+
+        # Heart rate reserve fraction (0.0 to 1.0)
         hr_reserve_fraction = max(0.0, (avg_hr - resting_ref) / (max_ref - resting_ref))
         duration_hours = duration_minutes / 60.0
 
-        # Carga acumulada basada en intensidad exponencial (escala Banister / TRIMP simplificada)
+        # Non-linear cumulative strain (Banister TRIMP adaptation)
         intensity_strain = (hr_reserve_fraction ** 1.5) * 15.0
         duration_strain = min(4.0, duration_hours * 2.0)
         caloric_strain = min(3.0, active_calories / 400.0)
 
         strain = round(min(21.0, max(1.0, intensity_strain + duration_strain + caloric_strain)), 1)
 
-        # Tiempo de recuperación base
+        # Base recovery hours
         if strain >= 14.0:
             rec_hours = 36
         elif strain >= 8.5:
@@ -244,11 +242,11 @@ class PhysiologyEngine:
         else:
             rec_hours = 12
 
-        # Ajuste según recuperación cardíaca en 1 minuto
+        # Vagal reactivation adjustment based on 1-min post-exercise cardio recovery
         if recovery_hr_1min is not None:
-            if recovery_hr_1min < 15: # Bajó muy poco: sistema cardiovascular exhausto
+            if recovery_hr_1min < 15: # Sluggish drop indicates autonomic exhaustion
                 rec_hours += 8
-            elif recovery_hr_1min > 28: # Excelente reactivación vagal
+            elif recovery_hr_1min > 28: # Strong vagal tone reactivation
                 rec_hours = max(8, rec_hours - 6)
 
         return WorkoutAnalysis(
@@ -258,4 +256,5 @@ class PhysiologyEngine:
         )
 
     def _clamp(self, val: float, min_val: float, max_val: float) -> float:
+        """Utility to clamp numeric values within physiological bounds."""
         return max(min_val, min(max_val, val))
