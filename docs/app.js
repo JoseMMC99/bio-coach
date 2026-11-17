@@ -1192,7 +1192,7 @@ async function queryGeminiDirectly(userQuestion, apiKey) {
   return data.candidates[0].content.parts[0].text;
 }
 
-// 13. Manual Sleep Sync and Direct Supabase Ingestion
+// 13. Smart Automatic Telemetry Synchronization
 function initManualSync() {
   const modal = document.getElementById('sync-modal');
   const btnOpenModal = document.getElementById('btn-open-sync-modal');
@@ -1200,39 +1200,91 @@ function initManualSync() {
   const btnCloseModal = document.getElementById('btn-close-sync-modal');
   const btnCancelSync = document.getElementById('btn-cancel-sync');
   const btnRunShortcut = document.getElementById('btn-run-shortcut-ios');
+  const btnFetchCloud = document.getElementById('btn-fetch-cloud-sync');
   const syncForm = document.getElementById('sync-form');
   const submitBtn = document.getElementById('btn-submit-sync');
 
-  const openModal = () => modal && modal.classList.remove('hidden');
+  const openModal = () => {
+    if (!modal) return;
+    // Pre-populate with current dashboard data or physiological baseline so inputs are never empty
+    const current = window.currentDashboardData?.today;
+    const sleepInput = document.getElementById('input-sleep');
+    const hrvInput = document.getElementById('input-hrv');
+    const rhrInput = document.getElementById('input-rhr');
+
+    if (sleepInput && !sleepInput.value) sleepInput.value = current?.sleep ? Number(current.sleep).toFixed(1) : "7.8";
+    if (hrvInput && !hrvInput.value) hrvInput.value = current?.hrv ? Math.round(current.hrv) : "64";
+    if (rhrInput && !rhrInput.value) rhrInput.value = current?.rhr ? Math.round(current.rhr) : "52";
+
+    modal.classList.remove('hidden');
+  };
+
   const closeModal = () => modal && modal.classList.add('hidden');
 
   if (btnOpenModal) btnOpenModal.addEventListener('click', openModal);
-  if (btnHeaderSync) btnHeaderSync.addEventListener('click', openModal);
   if (btnCloseModal) btnCloseModal.addEventListener('click', closeModal);
   if (btnCancelSync) btnCancelSync.addEventListener('click', closeModal);
 
-  if (btnRunShortcut) {
-    btnRunShortcut.addEventListener('click', () => {
-      window.location.href = 'shortcuts://run-shortcut?name=Recuperaci%C3%B3n%20Matutina';
-      setTimeout(() => {
-        alert('Si estás en tu iPhone, el atajo se abrirá para leer tu Apple Watch.');
-      }, 1000);
+  // Global Header Sync Button: queries cloud directly, refreshes and organizes
+  if (btnHeaderSync) {
+    btnHeaderSync.addEventListener('click', async () => {
+      const origText = btnHeaderSync.innerHTML;
+      btnHeaderSync.innerHTML = '<span>⏳</span> Consultando...';
+      try {
+        await initDashboard();
+        btnHeaderSync.innerHTML = '<span>✅</span> Al día';
+        setTimeout(() => { btnHeaderSync.innerHTML = origText; }, 2000);
+      } catch (e) {
+        btnHeaderSync.innerHTML = origText;
+        openModal();
+      }
     });
   }
 
+  // 1-Click Apple Watch Trigger via iOS Shortcut Scheme
+  if (btnRunShortcut) {
+    btnRunShortcut.addEventListener('click', () => {
+      window.location.href = 'shortcuts://run-shortcut?name=Recuperaci%C3%B3n%20Matutina';
+      // Auto-refresh when user returns from Shortcuts app
+      const onFocus = async () => {
+        window.removeEventListener('focus', onFocus);
+        await initDashboard();
+      };
+      window.addEventListener('focus', onFocus);
+      setTimeout(() => {
+        closeModal();
+      }, 1500);
+    });
+  }
+
+  // Cloud Sync / Re-organize Telemetry from Supabase
+  if (btnFetchCloud) {
+    btnFetchCloud.addEventListener('click', async () => {
+      btnFetchCloud.textContent = 'Consultando Supabase...';
+      try {
+        await initDashboard();
+        closeModal();
+        alert('✅ Telemetría más reciente consultada y organizada con éxito.');
+      } catch (err) {
+        alert('Error al consultar la nube: ' + err.message);
+      } finally {
+        btnFetchCloud.innerHTML = '<span>🔄</span> Consultar y Organizar Datos de la Nube';
+      }
+    });
+  }
+
+  // 1-Click Pre-populated Telemetry Submission
   if (syncForm) {
     syncForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       
-      const sleepHours = parseFloat(document.getElementById('input-sleep').value);
-      const hrvVal = parseFloat(document.getElementById('input-hrv').value) || 60;
-      const rhrVal = parseFloat(document.getElementById('input-rhr').value) || 54;
-      const deepVal = parseFloat(document.getElementById('input-deep').value) || 1.5;
-      const remVal = parseFloat(document.getElementById('input-rem').value) || 1.8;
+      const sleepHours = parseFloat(document.getElementById('input-sleep')?.value) || 7.8;
+      const hrvVal = parseFloat(document.getElementById('input-hrv')?.value) || 64;
+      const rhrVal = parseFloat(document.getElementById('input-rhr')?.value) || 52;
+      const deepVal = parseFloat(document.getElementById('input-deep')?.value) || 1.6;
+      const remVal = parseFloat(document.getElementById('input-rem')?.value) || 1.9;
 
-      if (!sleepHours) return;
-
-      submitBtn.textContent = 'Guardando en Supabase...';
+      submitBtn.textContent = 'Organizando telemetría...';
       submitBtn.disabled = true;
 
       try {
@@ -1268,28 +1320,52 @@ function initManualSync() {
         if (!res.ok) throw new Error("Error al guardar en Supabase: " + res.status);
 
         closeModal();
-        syncForm.reset();
         await initDashboard();
       } catch (err) {
         alert('Error al sincronizar: ' + err.message);
       } finally {
-        submitBtn.textContent = 'Analizar y Sincronizar';
+        submitBtn.textContent = '✅ Organizar y Confirmar Telemetría (1-Clic)';
         submitBtn.disabled = false;
       }
     });
   }
 }
 
-// 14. Apple Shortcuts 1-Click Downloader Modal
+// 14. Apple Shortcuts & Automation Recipe Modal
 function initShortcutsModal() {
   const modal = document.getElementById('shortcuts-modal');
   const btnOpen = document.getElementById('btn-open-shortcuts');
   const btnClose = document.getElementById('btn-close-shortcuts-modal');
+  const btnCopyToken = document.getElementById('btn-copy-athlete-token');
 
   if (btnOpen && modal) {
     btnOpen.addEventListener('click', () => modal.classList.remove('hidden'));
   }
   if (btnClose && modal) {
     btnClose.addEventListener('click', () => modal.classList.add('hidden'));
+  }
+
+  // Copy helper for URLs and API keys
+  document.querySelectorAll('.btn-copy-helper').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const textToCopy = btn.getAttribute('data-copy');
+      if (textToCopy) {
+        await navigator.clipboard.writeText(textToCopy);
+        const orig = btn.textContent;
+        btn.textContent = '¡Copiado!';
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      }
+    });
+  });
+
+  // Copy athlete token
+  if (btnCopyToken) {
+    btnCopyToken.addEventListener('click', async () => {
+      const token = getAthleteKey() || 'atleta_privado';
+      await navigator.clipboard.writeText(token);
+      const orig = btnCopyToken.textContent;
+      btnCopyToken.textContent = '¡Copiado!';
+      setTimeout(() => { btnCopyToken.textContent = orig; }, 1500);
+    });
   }
 }
