@@ -158,7 +158,7 @@ function updateSecretDotUI() {
 
   // Update prompt templates with active pin
   const effectivePin = athleteKey || 'atleta_privado';
-  ['prompt-text-recovery', 'prompt-text-workout', 'prompt-text-hr', 'prompt-text-meal'].forEach(id => {
+  ['prompt-text-baseline', 'prompt-text-recovery', 'prompt-text-workout', 'prompt-text-hr', 'prompt-text-meal'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
       if (!el.dataset.template) el.dataset.template = el.textContent;
@@ -1480,7 +1480,7 @@ function initShortcutsModal() {
     if (aiBadge) aiBadge.textContent = currentPin;
 
     // Dynamically replace {PIN} in all prompt pre blocks
-    ['prompt-text-recovery', 'prompt-text-workout', 'prompt-text-hr', 'prompt-text-meal'].forEach(id => {
+    ['prompt-text-baseline', 'prompt-text-recovery', 'prompt-text-workout', 'prompt-text-hr', 'prompt-text-meal'].forEach(id => {
       const el = document.getElementById(id);
       if (el && !el.dataset.template) {
         el.dataset.template = el.textContent;

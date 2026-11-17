@@ -720,39 +720,60 @@
           </p>
         </div>
 
-        <!-- Prompt 1: Recuperación Matutina -->
+        <!-- Prompt 0: Sincronización Inicial (Línea Base de 7 Días) -->
+        <div class="glass-card p-4 rounded-2xl border border-white/10 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-black text-cyan-400 flex items-center gap-2">
+              <span>🌟</span> 00. Sincronización Inicial (Historial 7 Días)
+            </h3>
+            <button type="button" class="btn-copy-prompt text-[10px] px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black shadow-md shadow-cyan-500/20 transition-all active:scale-95" data-target="prompt-text-baseline">
+              📋 Copiar Prompt
+            </button>
+          </div>
+          <p class="text-[10px] text-slate-400">Ejecutar solo una vez al comenzar para sembrar tu línea base real de 7 días.</p>
+          <pre id="prompt-text-baseline" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "Sincronización Inicial BioCoach":
+Step 1: Calculate date 7 days before Current Date.
+Step 2: Find Health samples for Resting Heart Rate from the past 7 days, and calculate average value as Number.
+Step 3: Find Health samples for Heart Rate Variability SDNN from past 7 days, and calculate average value as Number.
+Step 4: Find Health samples for Sleep Analysis from past 7 days. Calculate average daily sleep duration in hours.
+Step 5: Format Current Date as "yyyy-MM-dd".
+Step 6: Make HTTP POST to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date":
+- Request Body: JSON with "recorded_date": formatted date, "sleep_hours": average sleep, "resting_hr": average heart rate, "hrv_ms": average hrv, "athlete_id": "{PIN}"
+- Headers: "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5", "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5", "Prefer": "resolution=merge-duplicates,return=representation", "x-athlete-token": "{PIN}"
+Step 7: Show Notification with title "BioCoach Inicial" and body containing the result from the URL request.</pre>
+        </div>
+
+        <!-- Prompt 1: Recuperación Matutina (Al Desactivar Modo Sueño) -->
         <div class="glass-card p-4 rounded-2xl border border-white/10 space-y-2.5">
           <div class="flex items-center justify-between">
             <h3 class="text-xs font-black text-white flex items-center gap-2">
-              <span>☀️</span> 01. Recuperación Matutina
+              <span>☀️</span> 01. Recuperación Matutina (Al Despertar)
             </h3>
             <button type="button" class="btn-copy-prompt text-[10px] px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black shadow-md shadow-cyan-500/20 transition-all active:scale-95" data-target="prompt-text-recovery">
               📋 Copiar Prompt
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">Extrae sueño, HRV y FC reposo de Apple Health y los sube a Supabase.</p>
-          <pre id="prompt-text-recovery" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create a new Apple Shortcut named "Recuperación Matutina".
-Step 1: Find latest Health sample for "Sleep Analysis" (limit 1, sorted by newest end date). Get the Duration of this sample in hours (do NOT use Convert Measurement to meters; use Time duration in hours).
-Step 2: Find latest Health sample for "Resting Heart Rate" (limit 1, sorted by newest). Get the sample's Value as Number (without bpm).
-Step 3: Find latest Health sample for "Heart Rate Variability SDNN" (limit 1, sorted by newest). Get the sample's Value as Number (without ms).
-Step 4: Format Current Date with Custom Date Format "yyyy-MM-dd".
-Step 5: Create a Dictionary with:
-- "recorded_date": formatted date
-- "sleep_hours": Sleep duration in hours
-- "resting_hr": Resting Heart Rate value
-- "hrv_ms": Heart Rate Variability value
-- "athlete_id": "{PIN}"
-Step 6: Get Contents of URL using HTTP POST:
-- URL: "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date"
-- Request Body: JSON with the Dictionary
+          <p class="text-[10px] text-slate-400">Toma exclusivamente el sueño de anoche (ventana de 14h), ignorando siestas y días previos.</p>
+          <pre id="prompt-text-recovery" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "Recuperación Matutina":
+Step 1: Calculate date 14 hours before Current Date (this represents yesterday evening at 6:00 PM).
+Step 2: Find Health samples for "Sleep Analysis" where Start Date is after the calculated date (captures ONLY last night's sleep).
+Step 3: Calculate the Sum of Durations of the found sleep samples in hours, formatted as decimal number. If empty, default to 5.0.
+Step 4: Find latest Health sample for "Resting Heart Rate" (limit 1, newest). Get sample Value as Number.
+Step 5: Find latest Health sample for "Heart Rate Variability SDNN" (limit 1, newest). Get sample Value as Number.
+Step 6: Format Current Date as "yyyy-MM-dd".
+Step 7: Make HTTP POST to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date":
+- Request Body: JSON with:
+  * "recorded_date": formatted date
+  * "sleep_hours": calculated sleep hours
+  * "resting_hr": Resting Heart Rate number
+  * "hrv_ms": Heart Rate Variability number
+  * "athlete_id": "{PIN}"
 - Headers:
-  * "Content-Type": "application/json"
   * "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
   * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
   * "Prefer": "resolution=merge-duplicates,return=representation"
   * "x-athlete-token": "{PIN}"
-Step 7: Show Notification with title "BioCoach Cloud" and body containing the result from Get Contents of URL.
-(Note: Never use Convert Measurement to "m" or meters; treat all health values as numbers or time duration).</pre>
+Step 8: Show Notification with title "BioCoach Matutino" and body containing result from URL request.</pre>
         </div>
 
         <!-- Prompt 2: Fin de Entrenamiento -->
