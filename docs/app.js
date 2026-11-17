@@ -563,8 +563,8 @@ async function fetchDirectFromSupabase(athleteKey) {
     : `${SUPABASE_CONFIG.url}/rest/v1/hr_checkins?is_demo=eq.true&order=created_at.desc&limit=5`;
 
   const nutrUrl = athleteKey
-    ? `${SUPABASE_CONFIG.url}/rest/v1/nutrition_logs?athlete_id=eq.${encodeURIComponent(athleteKey)}&order=created_at.desc&limit=10`
-    : `${SUPABASE_CONFIG.url}/rest/v1/nutrition_logs?is_demo=eq.true&order=created_at.desc&limit=10`;
+    ? `${SUPABASE_CONFIG.url}/rest/v1/nutrition_logs?athlete_id=eq.${encodeURIComponent(athleteKey)}&order=created_at.desc&limit=50`
+    : `${SUPABASE_CONFIG.url}/rest/v1/nutrition_logs?is_demo=eq.true&order=created_at.desc&limit=50`;
 
   const [recRes, wkRes, hrRes, nutrRes] = await Promise.all([
     fetch(recUrl, { headers }),
@@ -671,6 +671,9 @@ function processBiometricHistory(history, workouts) {
       rhr: Number(r.resting_hr),
       resp: r.respiratory_rate,
       temp_c: toCelsius(r.wrist_temp_deviation),
+      basal_calories: r.basal_calories != null ? Number(r.basal_calories) : null,
+      active_calories: r.active_calories != null ? Number(r.active_calories) : null,
+      steps: r.steps != null ? Number(r.steps) : null,
       overall_score: evalPillars.score,
       traffic_light: evalPillars.trafficLight,
       pillars: evalPillars.pillars,
@@ -1106,7 +1109,7 @@ function renderDashboard(data) {
   renderWorstAspect(today.worst_aspect);
   applyActiveRangeViews(data);
   renderWorkouts(data.recent_workouts);
-  renderCalorieMatrix();
+  syncNutritionWithDashboard(data);
 }
 
 // Applies the active timeframe (Diario=1, 7 Días=7, 15 Días=15) to History & HRV Trend charts
@@ -1563,111 +1566,375 @@ function renderWorkouts(workouts) {
   });
 }
 
-// 10. Nutrition Engine: Mifflin-St Jeor Real-Time Calculator & Circular Calorie Ring
-function initNutrition() {
-  const form = document.getElementById('nutrition-form');
-  const mealForm = document.getElementById('meal-quick-form');
+// Local YYYY-MM-DD helper (respects user timezone e.g. Colombia UTC-5 instead of UTC flip at 7pm)
+function getLocalDateString(dateObj = new Date()) {
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const d = String(dateObj.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
-  // Interactive inputs for real-time calculation
+function loadSavedNutritionConfig() {
+  try {
+    return JSON.parse(localStorage.getItem('BIOCOACH_NUTRITION_CONFIG') || 'null');
+  } catch {
+    return null;
+  }
+}
+
+function saveNutritionConfig(cfg) {
+  localStorage.setItem('BIOCOACH_NUTRITION_CONFIG', JSON.stringify(cfg));
+}
+
+function updateGoalCardHighlight(goal) {
+  document.querySelectorAll('.goal-card-label').forEach(lbl => {
+    const g = lbl.getAttribute('data-goal-card');
+    lbl.className = 'goal-card-label glass-card p-3 rounded-2xl border flex flex-col items-center cursor-pointer text-center transition-all ' + (
+      g === goal
+        ? (g === 'cut' ? 'border-amber-500 bg-amber-500/15' : (g === 'bulk' ? 'border-emerald-500 bg-emerald-500/15' : 'border-cyan-500 bg-cyan-500/15'))
+        : 'border-slate-700/60 hover:border-slate-500'
+    );
+  });
+}
+
+// Recomputes BMR, TDEE (real 30-day Apple Watch or Mifflin-St Jeor), macros & syncs UI + Calorie Matrix
+function recalculateNutrition(persist = false) {
   const weightInput = document.getElementById('nutr-weight');
   const heightInput = document.getElementById('nutr-height');
   const ageInput = document.getElementById('nutr-age');
   const genderInput = document.getElementById('nutr-gender');
   const activityInput = document.getElementById('nutr-activity');
+  const useWatchToggle = document.getElementById('nutr-use-watch-tdee');
 
-  function calculateFromInputs() {
-    const weight = parseFloat(weightInput?.value) || 75;
-    const height = parseFloat(heightInput?.value) || 175;
-    const age = parseInt(ageInput?.value) || 26;
-    const gender = genderInput?.value || 'male';
-    const activity = activityInput?.value || 'moderate';
-    const goalRadio = document.querySelector('input[name="nutr-goal"]:checked');
-    const goal = goalRadio ? goalRadio.value : 'maintain';
+  const weight = parseFloat(weightInput?.value) || 75;
+  const height = parseFloat(heightInput?.value) || 175;
+  const age = parseInt(ageInput?.value, 10) || 26;
+  const gender = genderInput?.value || 'male';
+  const activity = activityInput?.value || 'moderate';
+  const useWatchTdee = useWatchToggle ? useWatchToggle.checked : true;
+  const goalRadio = document.querySelector('input[name="nutr-goal"]:checked');
+  const goal = goalRadio ? goalRadio.value : 'maintain';
 
-    // Mifflin-St Jeor Equation
-    const baseBmr = (10.0 * weight) + (6.25 * height) - (5.0 * age);
-    const bmr = gender === 'female' ? (baseBmr - 161) : (baseBmr + 5);
+  updateGoalCardHighlight(goal);
 
-    const multipliers = {
-      sedentary: 1.20,
-      light: 1.375,
-      moderate: 1.55,
-      active: 1.725,
-      athlete: 1.90
-    };
-    const tdee = bmr * (multipliers[activity] || 1.55);
+  // Formula BMR/TDEE (Mifflin-St Jeor)
+  const baseBmr = (10.0 * weight) + (6.25 * height) - (5.0 * age);
+  const formulaBmr = Math.round(gender === 'female' ? (baseBmr - 161) : (baseBmr + 5));
+  const multipliers = { sedentary: 1.20, light: 1.375, moderate: 1.55, active: 1.725, athlete: 1.90 };
+  const formulaTdee = Math.round(formulaBmr * (multipliers[activity] || 1.55));
 
-    const offsets = { cut: -400, maintain: 0, bulk: 300 };
-    const offset = offsets[goal] || 0;
-    const targetKcal = Math.round(Math.max(1200, tdee + offset));
+  // Real 30-day Apple Watch expenditure (if available and enabled)
+  const watchStats = window.watchExpenditureStats || null;
+  const usingWatch = Boolean(useWatchTdee && watchStats && watchStats.avgTdee > 0);
+  const bmr = usingWatch ? watchStats.avgBasal : formulaBmr;
+  const tdee = usingWatch ? watchStats.avgTdee : formulaTdee;
 
-    // Macronutrient distribution
-    const proteinG = Math.round(weight * 2.05);
-    const fatG = Math.round(weight * 0.82);
-    const proteinKcal = proteinG * 4;
-    const fatKcal = fatG * 9;
-    const carbsG = Math.round(Math.max(50, (targetKcal - proteinKcal - fatKcal) / 4));
+  const offsets = { cut: -400, maintain: 0, bulk: 300 };
+  const offset = offsets[goal] || 0;
+  const targetKcal = Math.round(Math.max(1400, tdee + offset));
 
-    window.currentNutritionState = {
-      weight, height, age, gender, activity, goal,
-      bmr: Math.round(bmr),
-      tdee: Math.round(tdee),
-      targetKcal: targetKcal,
-      goalOffset: offset,
-      consumedToday: window.currentNutritionState?.consumedToday || 1850,
-      macros: { protein: proteinG, carbs: carbsG, fat: fatG }
-    };
+  // Clinically calibrated macronutrients (sensible protein cap at higher bodyweights)
+  const proteinG = Math.min(220, Math.round(weight * (weight > 95 ? 1.7 : 2.0)));
+  const fatG = Math.min(110, Math.round(weight * 0.8));
+  const proteinKcal = proteinG * 4;
+  const fatKcal = fatG * 9;
+  const carbsG = Math.round(Math.max(60, (targetKcal - proteinKcal - fatKcal) / 4));
 
-    updateNutritionDisplay();
+  const prevConsumed = window.currentNutritionState?.consumedToday ?? 0;
+
+  window.currentNutritionState = {
+    weight, height, age, gender, activity, goal, useWatchTdee, usingWatch,
+    bmr, tdee, targetKcal, goalOffset: offset,
+    consumedToday: prevConsumed,
+    macros: { protein: proteinG, carbs: carbsG, fat: fatG }
+  };
+
+  if (persist) {
+    saveNutritionConfig({ weight, height, age, gender, activity, goal, useWatchTdee, userEditedWeight: true });
   }
 
-  // Real-time calculation listeners
-  [weightInput, heightInput, ageInput, genderInput, activityInput].forEach(inp => {
+  updateNutritionDisplay();
+  renderCalorieMatrix();
+}
+
+// Synchronizes Nutrition state with real 30-day Apple Watch expenditure, real weight & real Supabase nutrition_logs
+async function syncNutritionWithDashboard(data) {
+  if (!data) return;
+
+  // 1. Compute real 30-day Watch Basal & Active expenditure (use complete days with basal >= 1200)
+  const fullCal = data.full_calendar || [];
+  const todayStr = getLocalDateString();
+  const completeDays = fullCal.filter(d => d.date !== todayStr && d.basal_calories >= 1200 && d.active_calories != null);
+  const fallbackDays = fullCal.filter(d => d.basal_calories > 0 && d.active_calories != null);
+  const sampleDays = completeDays.length >= 3 ? completeDays : fallbackDays;
+
+  if (sampleDays.length > 0) {
+    const avgBasal = Math.round(sampleDays.reduce((s, d) => s + d.basal_calories, 0) / sampleDays.length);
+    const avgActive = Math.round(sampleDays.reduce((s, d) => s + d.active_calories, 0) / sampleDays.length);
+    window.watchExpenditureStats = {
+      avgBasal,
+      avgActive,
+      avgTdee: avgBasal + avgActive,
+      daysCount: sampleDays.length
+    };
+    const hintEl = document.getElementById('nutr-watch-summary-hint');
+    if (hintEl) {
+      hintEl.textContent = `Promedio ${sampleDays.length}d: ${avgBasal} basal + ${avgActive} activo = ${avgBasal + avgActive} kcal/día`;
+    }
+  }
+
+  // 2. Auto-fill real Apple Watch Body Mass if user hasn't manually overridden weight
+  const savedCfg = loadSavedNutritionConfig();
+  const weightInput = document.getElementById('nutr-weight');
+  if (data.today?.body_mass_kg && weightInput && (!savedCfg || !savedCfg.userEditedWeight)) {
+    weightInput.value = Number(data.today.body_mass_kg).toFixed(1);
+  }
+
+  // 3. Auto-estimate any shortcut-logged meals missing estimated_calories via Gemini
+  const logs = data.nutrition_logs || [];
+  const pendingLogs = logs.filter(m => m.raw_text && (m.estimated_calories == null || Number(m.estimated_calories) === 0));
+  if (pendingLogs.length > 0) {
+    const athleteKey = getAthleteKey();
+    for (const meal of pendingLogs.slice(0, 3)) {
+      const est = await estimateMealMacros(meal.raw_text);
+      meal.estimated_calories = est.calories;
+      meal.protein_g = est.protein_g;
+      meal.carbs_g = est.carbs_g;
+      meal.fat_g = est.fat_g;
+      if (athleteKey && meal.id) {
+        fetch(`${SUPABASE_CONFIG.url}/rest/v1/nutrition_logs?id=eq.${meal.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_CONFIG.publishableKey,
+            'Authorization': `Bearer ${SUPABASE_CONFIG.publishableKey}`,
+            'x-athlete-token': athleteKey
+          },
+          body: JSON.stringify({
+            estimated_calories: est.calories,
+            protein_g: est.protein_g,
+            carbs_g: est.carbs_g,
+            fat_g: est.fat_g
+          })
+        }).catch(() => {});
+      }
+    }
+  }
+
+  // 4. Sum real consumed calories for today from nutrition_logs
+  const todayMeals = logs.filter(m => (m.logged_date || (m.created_at || '').slice(0, 10)) === todayStr);
+  const consumedToday = todayMeals.reduce((sum, m) => sum + (Number(m.estimated_calories) || 0), 0);
+  if (!window.currentNutritionState) window.currentNutritionState = {};
+  window.currentNutritionState.consumedToday = consumedToday;
+
+  recalculateNutrition(false);
+  renderTodayMealsList(todayMeals);
+}
+
+// Estimates calories and macros using Gemini Flash (with deterministic fallback if offline)
+async function estimateMealMacros(mealText) {
+  try {
+    const apiKey = localStorage.getItem('BIOCOACH_GEMINI_KEY') || DEFAULT_GEMINI_KEY;
+    if (apiKey) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${apiKey}`;
+      const prompt = `Estima calorías y macronutrientes para esta comida colombiana/latina: "${mealText}". Responde ÚNICAMENTE un JSON válido sin markdown con las llaves exactas: {"calories": entero, "protein_g": numero, "carbs_g": numero, "fat_g": numero}.`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      });
+      if (res.ok) {
+        const d = await res.json();
+        const raw = (d?.candidates?.[0]?.content?.parts?.[0]?.text || '').replace(/```json|```/g, '').trim();
+        const parsed = JSON.parse(raw);
+        if (parsed && Number(parsed.calories) > 0) {
+          return {
+            calories: Math.round(Number(parsed.calories)),
+            protein_g: Math.round(Number(parsed.protein_g || 20)),
+            carbs_g: Math.round(Number(parsed.carbs_g || 40)),
+            fat_g: Math.round(Number(parsed.fat_g || 15))
+          };
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Gemini meal estimate fallback:", e);
+  }
+  const t = mealText.toLowerCase();
+  let cal = 450, p = 25, c = 48, f = 16;
+  if (t.includes("huevo") || t.includes("arepa")) { cal = 420; p = 24; c = 42; f = 16; }
+  if (t.includes("pollo") || t.includes("carne") || t.includes("bandeja") || t.includes("almuerzo")) { cal = 650; p = 42; c = 65; f = 22; }
+  if (t.includes("ensalada") || t.includes("fruta") || t.includes("yogur")) { cal = 240; p = 10; c = 36; f = 6; }
+  if (t.includes("café") && t.length < 25) { cal = 90; p = 4; c = 10; f = 3; }
+  return { calories: cal, protein_g: p, carbs_g: c, fat_g: f };
+}
+
+function renderTodayMealsList(meals) {
+  const container = document.getElementById('today-meals-list');
+  if (!container) return;
+  if (!meals || meals.length === 0) {
+    container.innerHTML = '<p class="text-[11px] text-slate-500 italic">Sin comidas registradas hoy. Agrega tu primera comida arriba o por Siri.</p>';
+    return;
+  }
+
+  container.innerHTML = meals.map(m => `
+    <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-900/70 border border-white/5 text-xs">
+      <div class="min-w-0 flex-1">
+        <p class="text-white font-semibold truncate">${m.raw_text}</p>
+        <p class="text-[10px] text-slate-400">
+          <strong class="text-amber-400">${m.estimated_calories || '--'} kcal</strong>
+          • P: ${m.protein_g ?? '--'}g • C: ${m.carbs_g ?? '--'}g • G: ${m.fat_g ?? '--'}g
+        </p>
+      </div>
+      ${m.id ? `<button type="button" data-delete-meal="${m.id}" class="btn-del-meal text-xs text-slate-500 hover:text-rose-400 px-1.5 py-1 rounded-lg transition-colors" title="Eliminar">🗑️</button>` : ''}
+    </div>
+  `).join('');
+
+  container.querySelectorAll('.btn-del-meal').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-delete-meal');
+      const athleteKey = getAthleteKey();
+      if (!id || !athleteKey) return;
+      try {
+        await fetch(`${SUPABASE_CONFIG.url}/rest/v1/nutrition_logs?id=eq.${id}`, {
+          method: 'DELETE',
+          headers: {
+            'apikey': SUPABASE_CONFIG.publishableKey,
+            'Authorization': `Bearer ${SUPABASE_CONFIG.publishableKey}`,
+            'x-athlete-token': athleteKey
+          }
+        });
+        showToast('Comida eliminada', 'info');
+        await initDashboard();
+      } catch (err) {
+        showToast('Error al eliminar comida', 'error');
+      }
+    });
+  });
+}
+
+// 10. Nutrition Engine: Real-Time Persistent Goals & Gemini Meal Persistence
+function initNutrition() {
+  const form = document.getElementById('nutrition-form');
+  const mealForm = document.getElementById('meal-quick-form');
+
+  const weightInput = document.getElementById('nutr-weight');
+  const heightInput = document.getElementById('nutr-height');
+  const ageInput = document.getElementById('nutr-age');
+  const genderInput = document.getElementById('nutr-gender');
+  const activityInput = document.getElementById('nutr-activity');
+  const useWatchToggle = document.getElementById('nutr-use-watch-tdee');
+
+  // Restore persisted user settings from localStorage
+  const saved = loadSavedNutritionConfig();
+  if (saved) {
+    if (weightInput && saved.weight) weightInput.value = saved.weight;
+    if (heightInput && saved.height) heightInput.value = saved.height;
+    if (ageInput && saved.age) ageInput.value = saved.age;
+    if (genderInput && saved.gender) genderInput.value = saved.gender;
+    if (activityInput && saved.activity) activityInput.value = saved.activity;
+    if (useWatchToggle && typeof saved.useWatchTdee === 'boolean') useWatchToggle.checked = saved.useWatchTdee;
+    if (saved.goal) {
+      const radio = document.querySelector(`input[name="nutr-goal"][value="${saved.goal}"]`);
+      if (radio) radio.checked = true;
+    }
+  }
+
+  // Real-time calculation & persistence on EVERY change
+  [weightInput, heightInput, ageInput, genderInput, activityInput, useWatchToggle].forEach(inp => {
     if (inp) {
-      inp.addEventListener('input', calculateFromInputs);
-      inp.addEventListener('change', calculateFromInputs);
+      inp.addEventListener('input', () => recalculateNutrition(true));
+      inp.addEventListener('change', () => recalculateNutrition(true));
     }
   });
 
   document.querySelectorAll('input[name="nutr-goal"]').forEach(r => {
-    r.addEventListener('change', calculateFromInputs);
+    r.addEventListener('change', () => recalculateNutrition(true));
   });
 
   if (form) {
     form.addEventListener('submit', (e) => {
       e.preventDefault();
-      calculateFromInputs();
-      // Switch back to Balance panel after saving
+      recalculateNutrition(true);
+      showToast('✅ Metas y presupuesto calórico guardados', 'success');
       const btnBalance = document.getElementById('nutr-subtab-balance');
       if (btnBalance) btnBalance.click();
     });
   }
 
-  // Quick Meal Log (Voice dictation or manual text)
+  // Calorie History Range Switcher (7 Días | 15 Días)
+  window.activeCalorieRange = 7;
+  const calRangeButtons = document.querySelectorAll('.cal-range-btn');
+  calRangeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const days = parseInt(btn.getAttribute('data-cal-range') || '7', 10);
+      window.activeCalorieRange = days;
+      calRangeButtons.forEach(b => {
+        const act = parseInt(b.getAttribute('data-cal-range'), 10) === days;
+        b.className = act
+          ? 'cal-range-btn px-2.5 py-1 rounded-lg text-[10px] font-extrabold text-amber-400 bg-amber-500/15 transition-all'
+          : 'cal-range-btn px-2.5 py-1 rounded-lg text-[10px] font-extrabold text-slate-400 hover:text-white transition-all';
+      });
+      renderCalorieMatrix();
+    });
+  });
+
+  // Real Quick Meal Log: Gemini estimates macros -> saves to Supabase nutrition_logs -> refreshes UI
   if (mealForm) {
-    mealForm.addEventListener('submit', (e) => {
+    mealForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const input = document.getElementById('input-meal-text');
+      const submitBtn = document.getElementById('btn-submit-meal');
       const text = input ? input.value.trim() : '';
       if (!text) return;
 
-      // Heuristic meal calorie addition
-      let addedKcal = 450;
-      if (text.toLowerCase().includes("huevo")) addedKcal = 380;
-      if (text.toLowerCase().includes("pollo") || text.toLowerCase().includes("carne")) addedKcal = 550;
-      if (text.toLowerCase().includes("ensalada") || text.toLowerCase().includes("fruta")) addedKcal = 220;
+      const origText = submitBtn ? submitBtn.textContent : 'Registrar';
+      if (submitBtn) { submitBtn.textContent = 'Calculando...'; submitBtn.disabled = true; }
 
-      window.currentNutritionState.consumedToday += addedKcal;
-      updateNutritionDisplay();
-      renderCalorieMatrix();
+      try {
+        const est = await estimateMealMacros(text);
+        const todayStr = getLocalDateString();
+        const athleteKey = getAthleteKey() || 'atleta_privado';
+        const hr = new Date().getHours();
+        const mealType = hr < 11 ? 'desayuno' : (hr < 16 ? 'almuerzo' : (hr < 21 ? 'cena' : 'snack'));
 
-      if (input) input.value = '';
-      alert(`🍽️ ¡Comida registrada! +${addedKcal} kcal añadidas a tu balance diario.`);
+        const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/nutrition_logs`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_CONFIG.publishableKey,
+            'Authorization': `Bearer ${SUPABASE_CONFIG.publishableKey}`,
+            'Prefer': 'return=representation',
+            'x-athlete-token': athleteKey
+          },
+          body: JSON.stringify({
+            logged_date: todayStr,
+            meal_type: mealType,
+            raw_text: text,
+            estimated_calories: est.calories,
+            protein_g: est.protein_g,
+            carbs_g: est.carbs_g,
+            fat_g: est.fat_g,
+            athlete_id: athleteKey,
+            is_demo: false
+          })
+        });
+
+        if (!res.ok) throw new Error('Error guardando comida en Supabase');
+        if (input) input.value = '';
+        showToast(`🍽️ +${est.calories} kcal (P:${est.protein_g}g C:${est.carbs_g}g G:${est.fat_g}g) guardadas`, 'success');
+        await initDashboard();
+      } catch (err) {
+        showToast('Error al registrar comida: ' + err.message, 'error');
+      } finally {
+        if (submitBtn) { submitBtn.textContent = origText; submitBtn.disabled = false; }
+      }
     });
   }
 
-  // Initial calculation
-  calculateFromInputs();
+  // Initial calculation (zero hardcoded 1850 consumed)
+  window.currentNutritionState.consumedToday = 0;
+  recalculateNutrition(false);
 }
 
 // Updates Circular Caloric Gauge and Macronutrient Bars
@@ -1681,10 +1948,15 @@ function updateNutritionDisplay() {
   const goalOffsetEl = document.getElementById('nutr-goal-offset');
   const pctBadge = document.getElementById('calorie-pct-badge');
   const ringCircle = document.getElementById('calorie-svg-ring');
+  const sourceBadge = document.getElementById('nutr-tdee-source');
 
-  if (targetEl) targetEl.textContent = state.targetKcal.toLocaleString('es-ES');
-  if (bmrEl) bmrEl.textContent = `${state.bmr} kcal`;
-  if (tdeeEl) tdeeEl.textContent = `${state.tdee} kcal`;
+  if (sourceBadge) {
+    sourceBadge.textContent = state.usingWatch ? '⌚ Apple Watch 30d' : '📐 Fórmula Mifflin';
+  }
+
+  if (targetEl) targetEl.textContent = state.targetKcal.toLocaleString('es-CO');
+  if (bmrEl) bmrEl.textContent = `${state.bmr.toLocaleString('es-CO')} kcal`;
+  if (tdeeEl) tdeeEl.textContent = `${state.tdee.toLocaleString('es-CO')} kcal`;
   if (goalOffsetEl) {
     goalOffsetEl.textContent = `${state.goalOffset > 0 ? '+' : ''}${state.goalOffset} kcal`;
     goalOffsetEl.className = `text-base font-extrabold mt-0.5 ${state.goal === 'cut' ? 'text-amber-400' : (state.goal === 'bulk' ? 'text-emerald-400' : 'text-cyan-400')}`;
@@ -1692,7 +1964,8 @@ function updateNutritionDisplay() {
 
   // SVG Circular Gauge Animation (Circumference = 314.16 for r=50)
   const circumference = 314.16;
-  const progressRatio = Math.min(1.2, state.consumedToday / (state.targetKcal || 2000));
+  const consumed = state.consumedToday || 0;
+  const progressRatio = Math.min(1.2, consumed / (state.targetKcal || 2000));
   const offset = Math.max(0, circumference * (1 - Math.min(1.0, progressRatio)));
 
   if (ringCircle) {
@@ -1701,7 +1974,7 @@ function updateNutritionDisplay() {
 
   if (pctBadge) {
     const pct = Math.round(progressRatio * 100);
-    pctBadge.textContent = `${pct}% (${state.consumedToday} / ${state.targetKcal} kcal)`;
+    pctBadge.textContent = `${pct}% (${consumed.toLocaleString('es-CO')} / ${state.targetKcal.toLocaleString('es-CO')} kcal)`;
     if (pct > 105 && state.goal === 'cut') {
       pctBadge.className = 'mt-1 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300';
     } else {
@@ -1729,91 +2002,107 @@ function updateNutritionDisplay() {
   if (barFat) barFat.style.width = `${((m.fat * 9) / totalMacroKcal) * 100}%`;
 }
 
-// 11. 7-Day Caloric Balance Matrix (Evaluates Consumed vs Target vs TDEE)
+// 11. Real 7d / 15d Caloric Expenditure & Balance Carousel (100% Real Apple Watch + Supabase nutrition_logs, ZERO placeholders!)
 function renderCalorieMatrix() {
   const grid = document.getElementById('calorie-calendar-grid');
   if (!grid) return;
 
   grid.innerHTML = '';
   const state = window.currentNutritionState || {};
-  const tdee = state.tdee || 2600;
-  const target = state.targetKcal || 2200;
-  const goal = state.goal || 'cut';
+  const defaultTdee = state.tdee || 2600;
+  const goalOffset = state.goalOffset || 0;
+  const goal = state.goal || 'maintain';
+  const rangeDays = window.activeCalorieRange || 7;
 
-  const dayNames = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
-  const today = new Date();
+  const fullCal = window.currentDashboardData?.full_calendar || [];
+  const logs = window.currentDashboardData?.nutrition_logs || [];
 
-  // 7-day realistic calorie records
-  const sampleData = [
-    { offset: 0, consumed: state.consumedToday || 2150 },
-    { offset: 1, consumed: 2180 },
-    { offset: 2, consumed: 2240 },
-    { offset: 3, consumed: 2050 },
-    { offset: 4, consumed: 2890 }, // Surplus
-    { offset: 5, consumed: 2120 },
-    { offset: 6, consumed: 2200 }
-  ];
+  if (fullCal.length === 0) {
+    grid.innerHTML = '<p class="w-full text-center text-xs text-slate-500 py-4">Sincroniza tu Apple Watch para ver tu gasto calórico real.</p>';
+    return;
+  }
 
-  sampleData.reverse().forEach((d) => {
-    const dt = new Date(today);
-    dt.setDate(dt.getDate() - d.offset);
-    const dayName = dayNames[(dt.getDay() + 6) % 7];
-    const dayNum = dt.getDate();
+  // Aggregate real nutrition_logs calories by logged_date
+  const mealsByDate = {};
+  logs.forEach(m => {
+    const dt = m.logged_date || (m.created_at || '').slice(0, 10);
+    if (!dt) return;
+    mealsByDate[dt] = (mealsByDate[dt] || 0) + (Number(m.estimated_calories) || 0);
+  });
 
-    // Physiological evaluation matching metabolism.py
-    let badgeText = "Verde";
-    let badgeClass = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
-    const delta = d.consumed - target;
+  const sliced = fullCal.slice(-rangeDays);
 
-    if (goal === 'cut') {
-      if (d.consumed <= target + 75) {
-        badgeText = "🟢 En Meta";
-        badgeClass = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
-      } else if (d.consumed <= tdee + 50) {
-        badgeText = "🟡 Mantenimiento";
-        badgeClass = "text-amber-400 bg-amber-500/10 border-amber-500/20";
+  sliced.forEach((d, idx) => {
+    const isToday = idx === sliced.length - 1;
+    const hasWatchCal = d.basal_calories != null && d.active_calories != null;
+    const dayTdee = hasWatchCal ? Math.round(d.basal_calories + d.active_calories) : defaultTdee;
+    const dayTarget = Math.max(1400, dayTdee + goalOffset);
+    const consumed = mealsByDate[d.date] || 0;
+
+    let badgeText = "Sin comidas";
+    let badgeClass = "text-slate-400 bg-slate-800/70 border-white/10";
+    let deltaStr = `Act: ${d.active_calories ?? '--'}`;
+
+    if (consumed > 0) {
+      const delta = consumed - dayTarget;
+      deltaStr = `${delta > 0 ? '+' : ''}${delta}`;
+      if (goal === 'cut') {
+        if (consumed <= dayTarget + 100) {
+          badgeText = "🟢 En Meta";
+          badgeClass = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
+        } else if (consumed <= dayTdee + 50) {
+          badgeText = "🟡 Mantenim.";
+          badgeClass = "text-amber-400 bg-amber-500/10 border-amber-500/20";
+        } else {
+          badgeText = "🔴 Superávit";
+          badgeClass = "text-rose-400 bg-rose-500/10 border-rose-500/20";
+        }
+      } else if (goal === 'bulk') {
+        if (consumed >= dayTarget - 100 && consumed <= dayTarget + 250) {
+          badgeText = "🟢 Anabólico";
+          badgeClass = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
+        } else if (consumed >= dayTdee) {
+          badgeText = "🟡 Mantenim.";
+          badgeClass = "text-amber-400 bg-amber-500/10 border-amber-500/20";
+        } else {
+          badgeText = "🔴 Déficit";
+          badgeClass = "text-rose-400 bg-rose-500/10 border-rose-500/20";
+        }
       } else {
-        badgeText = "🔴 Superávit";
-        badgeClass = "text-rose-400 bg-rose-500/10 border-rose-500/20";
-      }
-    } else if (goal === 'bulk') {
-      if (d.consumed >= target - 100 && d.consumed <= target + 250) {
-        badgeText = "🟢 Anabólico";
-        badgeClass = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
-      } else if (d.consumed >= tdee && d.consumed < target - 100) {
-        badgeText = "🟡 Mantenimiento";
-        badgeClass = "text-amber-400 bg-amber-500/10 border-amber-500/20";
-      } else {
-        badgeText = "🔴 Déficit";
-        badgeClass = "text-rose-400 bg-rose-500/10 border-rose-500/20";
-      }
-    } else {
-      if (Math.abs(d.consumed - tdee) <= 150) {
-        badgeText = "🟢 Equilibrio";
-        badgeClass = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
-      } else if (d.consumed > tdee + 150) {
-        badgeText = "🔴 Superávit";
-        badgeClass = "text-rose-400 bg-rose-500/10 border-rose-500/20";
-      } else {
-        badgeText = "🟡 Déficit";
-        badgeClass = "text-amber-400 bg-amber-500/10 border-amber-500/20";
+        if (Math.abs(consumed - dayTdee) <= 200) {
+          badgeText = "🟢 Equilibrio";
+          badgeClass = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
+        } else if (consumed > dayTdee + 200) {
+          badgeText = "🔴 Superávit";
+          badgeClass = "text-rose-400 bg-rose-500/10 border-rose-500/20";
+        } else {
+          badgeText = "🟡 Déficit";
+          badgeClass = "text-amber-400 bg-amber-500/10 border-amber-500/20";
+        }
       }
     }
 
     const card = document.createElement('div');
-    card.className = 'glass-card p-3 rounded-2xl flex flex-col items-center gap-1.5 border border-white/5 text-center';
+    card.className = `w-[118px] shrink-0 snap-start glass-card p-3 rounded-2xl flex flex-col items-center gap-1.5 border ${isToday ? 'border-amber-500/40 bg-amber-500/5' : 'border-white/5'} text-center overflow-hidden`;
     card.innerHTML = `
-      <span class="text-[10px] font-bold text-slate-400 uppercase">${dayName} ${dayNum}</span>
-      <span class="text-xs font-black text-white">${d.consumed.toLocaleString('es-ES')} <span class="text-[9px] text-slate-400 font-normal">kcal</span></span>
-      <div class="px-2 py-0.5 rounded-lg border text-[10px] font-extrabold ${badgeClass}">
+      <span class="text-[10px] font-bold text-slate-300 uppercase">${d.day_name} ${d.date.slice(5)}</span>
+      <div class="text-center">
+        <span class="text-[9px] text-slate-500 uppercase block">Gasto Watch</span>
+        <span class="text-xs font-black text-cyan-400 whitespace-nowrap">${dayTdee.toLocaleString('es-CO')} <span class="text-[9px] font-normal text-slate-400">kcal</span></span>
+      </div>
+      <div class="px-2 py-0.5 rounded-lg border text-[10px] font-extrabold whitespace-nowrap ${badgeClass}">
         ${badgeText}
       </div>
       <div class="w-full pt-1.5 border-t border-white/5 text-[9px] flex justify-between text-slate-400">
-        <span>Gasto: ${tdee}</span>
-        <span class="${delta <= 0 ? 'text-emerald-400' : 'text-amber-400'} font-bold">${delta > 0 ? '+' : ''}${delta}</span>
+        <span>In: ${consumed > 0 ? consumed : '--'}</span>
+        <span class="font-bold text-amber-300">${deltaStr}</span>
       </div>
     `;
     grid.appendChild(card);
+  });
+
+  requestAnimationFrame(() => {
+    grid.scrollLeft = grid.scrollWidth;
   });
 }
 
@@ -1978,7 +2267,7 @@ async function fetchAndSaveDailyGeminiVerdict(t) {
     if (verdictEl) verdictEl.textContent = `"${verdictText}"`;
 
     // Persist today's Gemini verdict in Supabase so it is cached for the rest of the day
-    const athleteKey = getActiveAthleteKey();
+    const athleteKey = getAthleteKey();
     if (athleteKey) {
       await fetch(
         `${SUPABASE_CONFIG.url}/rest/v1/daily_recovery?recorded_date=eq.${encodeURIComponent(t.date)}&athlete_id=eq.${encodeURIComponent(athleteKey)}`,
@@ -2071,8 +2360,8 @@ function initManualSync() {
 
   // 1-Click Apple Watch Trigger via iOS Shortcut Scheme (Banner & Modal)
   const triggerShortcut = () => {
-    window.location.href = 'shortcuts://run-shortcut?name=Recuperaci%C3%B3n%20Matutina';
-    showToast('Abriendo atajo en iPhone...', 'info');
+    window.location.href = 'shortcuts://run-shortcut?name=BioCoach%20Vitales';
+    showToast('Abriendo atajo BioCoach Vitales en iPhone...', 'info');
     const onFocus = async () => {
       window.removeEventListener('focus', onFocus);
       await initDashboard();
@@ -2136,8 +2425,14 @@ function initManualSync() {
       submitBtn.disabled = true;
 
       try {
-        const todayStr = new Date().toISOString().slice(0, 10);
-        const evalRes = evaluateDailyPillars(sleepHours, hrvVal, rhrVal, 55.0, 54.0, 8.0);
+        const todayStr = getLocalDateString();
+        const curToday = window.currentDashboardData?.today;
+        const evalRes = evaluateDailyPillars(
+          sleepHours, hrvVal, rhrVal,
+          curToday?.base_hrv || 45.0,
+          curToday?.base_rhr || 74.0,
+          curToday?.base_sleep || 6.5
+        );
         const athleteKey = getAthleteKey() || 'atleta_privado';
 
         const payload = {
