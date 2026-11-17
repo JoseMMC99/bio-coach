@@ -944,15 +944,19 @@
               📋 Copiar Prompt
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">Automatización diaria al despertar. Extrae TODA tu telemetría del Apple Watch (sueño, vitales, actividad, movilidad y alertas clínicas) usando <code class="text-cyan-300">End Date is Today</code> para NO repetir jamás alertas de días pasados.</p>
+          <p class="text-[10px] text-slate-400">Automatización diaria al despertar. Usa <code class="text-cyan-300">last 16 hours</code> en sueño y respiración (funciona aunque te duermas a las 8–11 PM) y <code class="text-cyan-300">End Date is Today</code> en temperatura, actividad y alertas clínicas para NO repetir alertas pasadas.</p>
           <pre id="prompt-text-recovery" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "Recuperación Matutina":
-CRITICAL DEDUPLICATION RULE: EVERY Health query below MUST filter strictly by "End Date is Today" (NEVER pull without date filter) so past alerts (e.g. Hypertension or Sleep Apnea from previous days) are NEVER duplicated again. Only add a key to the Dictionary if the result has a valid value (> 0).
+CRITICAL RULES:
+1. Run this shortcut via Personal Automation when waking up (Sleep -> Waking Up / Sleep Focus turns off).
+2. For SLEEP & RESPIRATORY RATE (multi-segment overnight metrics), filter strictly by "End Date is in the last 16 hours" so sleeping early (8 PM, 9 PM, 10 PM, 11 PM) NEVER loses pre-midnight sleep and NEVER overlaps yesterday morning.
+3. For ALL OTHER METRICS (Wrist Temperature, Breathing Disturbances, Heart, SpO2, Activity, Mobility & Clinical Alerts), filter strictly by "End Date is Today" so past alerts (Hypertension, Sleep Apnea, Audio) are NEVER pulled twice.
+4. Only add a key to the Dictionary if the result has a valid value (> 0).
 
 Step 1: Format Current Date as "yyyy-MM-dd" (store as DateString).
 Step 2: Create main Dictionary (Payload) with initial keys:
   * "recorded_date": DateString
   * "athlete_id": "{PIN}"
-Step 3 (Sleep Architecture - End Date is Today; convert Duration seconds ÷ 3600 to Hours, round to 2 decimals; only add if > 0):
+Step 3 (Sleep Architecture - End Date is in the last 16 hours; convert Duration seconds ÷ 3600 to Hours, round to 2 decimals; only add if > 0):
   * "Sleep Analysis" where Value is NOT "Awake" AND Value is NOT "In Bed" -> key "sleep_hours"
   * "Sleep Analysis" where Value is "Asleep Deep" -> key "deep_sleep_hours"
   * "Sleep Analysis" where Value is "Asleep REM" -> key "rem_sleep_hours"
@@ -964,11 +968,11 @@ Step 4 (Cardiovascular Vitals - End Date is Today; only add if it has any value)
   * "Heart Rate" -> Average -> key "avg_hr"; Minimum -> key "min_hr"; Maximum -> key "max_hr"
   * "Walking Heart Rate Average" -> Statistics: Average -> key "walking_hr_avg"
   * "VO2 Max" (End Date is Today ONLY) -> Average -> key "vo2_max"
-Step 5 (Respiratory, Oxygen & Wrist Temp - End Date is Today; leave Unit blank/default on Health actions, BioCoach auto-converts °F/°C and %; only add if it has any value):
-  * "Respiratory Rate" -> Statistics: Average -> key "respiratory_rate"
-  * "Blood Oxygen" (Oxygen Saturation) -> Statistics: Average -> key "spo2_pct"
-  * "Breathing Disturbances" -> Statistics: Average -> key "breathing_disturbances"
-  * "Apple Sleeping Wrist Temperature" -> Statistics: Average -> key "wrist_temp_deviation"
+Step 5 (Respiratory, Oxygen & Wrist Temp - leave Unit blank/default on Health actions, BioCoach auto-converts °F/°C and %; only add if it has any value):
+  * "Respiratory Rate" (End Date is in the last 16 hours) -> Statistics: Average -> key "respiratory_rate"
+  * "Blood Oxygen" (End Date is Today) -> Statistics: Average -> key "spo2_pct"
+  * "Breathing Disturbances" (End Date is Today) -> Statistics: Average -> key "breathing_disturbances"
+  * "Apple Sleeping Wrist Temperature" (End Date is Today) -> Statistics: Average -> key "wrist_temp_deviation"
 Step 6 (Activity, Energy & Environment - End Date is Today; round INT fields to whole integers; only add if > 0):
   * "Steps" -> Sum, Round to Ones Place (integer) -> key "steps"
   * "Active Energy" -> Sum (kcal), Round to Ones Place (integer) -> key "active_calories"

@@ -62,6 +62,7 @@ def parse_apple_health_zip(zip_path: str, days_back: int = 30, athlete_id: str =
     # First pass / cutoff: determine date window relative to today
     today = datetime.now().date()
     cutoff_str = (today - timedelta(days=days_back - 1)).strftime("%Y-%m-%d")
+    pre_cutoff_str = (today - timedelta(days=days_back)).strftime("%Y-%m-%d")
     today_str = today.strftime("%Y-%m-%d")
 
     with zipfile.ZipFile(zip_path, "r") as z:
@@ -75,103 +76,107 @@ def parse_apple_health_zip(zip_path: str, days_back: int = 30, athlete_id: str =
                 if elem.tag == "Record":
                     end_s = elem.attrib.get("endDate", "")
                     day = end_s[:10]
-                    if cutoff_str <= day <= today_str:
+                    if pre_cutoff_str <= day <= today_str:
                         rtype = elem.attrib.get("type", "")
                         start_s = elem.attrib.get("startDate", "")
                         val = elem.attrib.get("value", "")
-                        d = days[day]
-
                         if rtype == "HKCategoryTypeIdentifierSleepAnalysis":
                             sdt, edt = parse_dt(start_s), parse_dt(end_s)
-                            if "AsleepCore" in val:
-                                d["sleep_all"].append((sdt, edt))
-                                d["sleep_core"].append((sdt, edt))
-                            elif "AsleepDeep" in val:
-                                d["sleep_all"].append((sdt, edt))
-                                d["sleep_deep"].append((sdt, edt))
-                            elif "AsleepREM" in val:
-                                d["sleep_all"].append((sdt, edt))
-                                d["sleep_rem"].append((sdt, edt))
-                            elif "AsleepUnspecified" in val:
-                                d["sleep_all"].append((sdt, edt))
-                            elif "Awake" in val:
-                                d["sleep_awake"].append((sdt, edt))
-                        elif rtype == "HKCategoryTypeIdentifierAppleStandHour":
-                            if "Stood" in val:
-                                d["stand_hours"].add(start_s[:13])
-                        elif rtype == "HKCategoryTypeIdentifierHypertensionEvent":
-                            d["hypertension_events"] += 1
-                        elif rtype == "HKCategoryTypeIdentifierSleepApneaEvent":
-                            d["sleep_apnea_events"] += 1
-                        elif rtype == "HKCategoryTypeIdentifierAudioExposureEvent":
-                            d["audio_events"] += 1
-                        else:
-                            try:
-                                fval = float(val)
-                            except (ValueError, TypeError):
-                                fval = None
+                            # Apple Health Sleep Day rule: sleep ending at or after 18:00 belongs to the next waking morning
+                            sleep_day = (edt + timedelta(hours=6)).strftime("%Y-%m-%d")
+                            if cutoff_str <= sleep_day <= today_str:
+                                sd = days[sleep_day]
+                                if "AsleepCore" in val:
+                                    sd["sleep_all"].append((sdt, edt))
+                                    sd["sleep_core"].append((sdt, edt))
+                                elif "AsleepDeep" in val:
+                                    sd["sleep_all"].append((sdt, edt))
+                                    sd["sleep_deep"].append((sdt, edt))
+                                elif "AsleepREM" in val:
+                                    sd["sleep_all"].append((sdt, edt))
+                                    sd["sleep_rem"].append((sdt, edt))
+                                elif "AsleepUnspecified" in val:
+                                    sd["sleep_all"].append((sdt, edt))
+                                elif "Awake" in val:
+                                    sd["sleep_awake"].append((sdt, edt))
+                        elif cutoff_str <= day <= today_str:
+                            d = days[day]
+                            if rtype == "HKCategoryTypeIdentifierAppleStandHour":
+                                if "Stood" in val:
+                                    d["stand_hours"].add(start_s[:13])
+                            elif rtype == "HKCategoryTypeIdentifierHypertensionEvent":
+                                d["hypertension_events"] += 1
+                            elif rtype == "HKCategoryTypeIdentifierSleepApneaEvent":
+                                d["sleep_apnea_events"] += 1
+                            elif rtype == "HKCategoryTypeIdentifierAudioExposureEvent":
+                                d["audio_events"] += 1
+                            else:
+                                try:
+                                    fval = float(val)
+                                except (ValueError, TypeError):
+                                    fval = None
 
-                            if fval is not None:
-                                if rtype == "HKQuantityTypeIdentifierRestingHeartRate":
-                                    d["rhr"].append(fval)
-                                elif rtype == "HKQuantityTypeIdentifierHeartRateVariabilitySDNN":
-                                    d["hrv"].append(fval)
-                                elif rtype == "HKQuantityTypeIdentifierHeartRate":
-                                    d["hr"].append(fval)
-                                elif rtype == "HKQuantityTypeIdentifierWalkingHeartRateAverage":
-                                    d["walk_hr"].append(fval)
-                                elif rtype == "HKQuantityTypeIdentifierVO2Max":
-                                    d["vo2"].append(fval)
-                                elif rtype == "HKQuantityTypeIdentifierRespiratoryRate":
-                                    d["resp"].append(fval)
-                                elif rtype == "HKQuantityTypeIdentifierOxygenSaturation":
-                                    d["spo2"].append(fval * 100.0 if fval <= 1.0 else fval)
-                                elif rtype == "HKQuantityTypeIdentifierAppleSleepingBreathingDisturbances":
-                                    d["breath_disturb"].append(fval)
-                                elif rtype == "HKQuantityTypeIdentifierAppleSleepingWristTemperature":
-                                    unit = elem.attrib.get("unit", "")
-                                    c_val = (fval - 32.0) * 5.0 / 9.0 if ("degF" in unit or fval > 50.0) else fval
-                                    d["temp"].append(c_val)
-                                elif rtype == "HKQuantityTypeIdentifierStepCount":
-                                    d["steps"] += int(round(fval))
-                                elif rtype == "HKQuantityTypeIdentifierActiveEnergyBurned":
-                                    d["active_cal"] += fval
-                                elif rtype == "HKQuantityTypeIdentifierBasalEnergyBurned":
-                                    d["basal_cal"] += fval
-                                elif rtype == "HKQuantityTypeIdentifierAppleExerciseTime":
-                                    d["exercise_min"] += fval
-                                elif rtype == "HKQuantityTypeIdentifierAppleStandTime":
-                                    d["stand_min"] += fval
-                                elif rtype == "HKQuantityTypeIdentifierDistanceWalkingRunning":
-                                    d["distance_km"] += fval
-                                elif rtype == "HKQuantityTypeIdentifierDistanceCycling":
-                                    d["cycling_km"] += fval
-                                elif rtype == "HKQuantityTypeIdentifierFlightsClimbed":
-                                    d["flights"] += int(round(fval))
-                                elif rtype == "HKQuantityTypeIdentifierTimeInDaylight":
-                                    d["daylight"] += fval
-                                elif rtype == "HKQuantityTypeIdentifierEnvironmentalAudioExposure":
-                                    d["audio_db"].append(fval)
-                                elif rtype == "HKQuantityTypeIdentifierBodyMass":
-                                    d["body_mass"].append(fval)
-                                elif rtype == "HKQuantityTypeIdentifierWalkingSpeed":
-                                    d["walk_speed"].append(fval)
-                                elif rtype == "HKQuantityTypeIdentifierWalkingStepLength":
-                                    d["step_len"].append(fval)
-                                elif rtype == "HKQuantityTypeIdentifierWalkingDoubleSupportPercentage":
-                                    d["double_supp"].append(fval * 100.0 if fval <= 1.0 else fval)
-                                elif rtype == "HKQuantityTypeIdentifierWalkingAsymmetryPercentage":
-                                    d["asymmetry"].append(fval * 100.0 if fval <= 1.0 else fval)
-                                elif rtype == "HKQuantityTypeIdentifierAppleWalkingSteadiness":
-                                    d["steadiness"].append(fval * 100.0 if fval <= 1.0 else fval)
-                                elif rtype == "HKQuantityTypeIdentifierStairAscentSpeed":
-                                    d["stair_up"].append(fval)
-                                elif rtype == "HKQuantityTypeIdentifierStairDescentSpeed":
-                                    d["stair_down"].append(fval)
-                                elif rtype == "HKQuantityTypeIdentifierPhysicalEffort":
-                                    d["effort"].append(fval)
-                                elif rtype == "HKQuantityTypeIdentifierSixMinuteWalkTestDistance":
-                                    d["six_min_m"].append(fval)
+                                if fval is not None:
+                                    if rtype == "HKQuantityTypeIdentifierRestingHeartRate":
+                                        d["rhr"].append(fval)
+                                    elif rtype == "HKQuantityTypeIdentifierHeartRateVariabilitySDNN":
+                                        d["hrv"].append(fval)
+                                    elif rtype == "HKQuantityTypeIdentifierHeartRate":
+                                        d["hr"].append(fval)
+                                    elif rtype == "HKQuantityTypeIdentifierWalkingHeartRateAverage":
+                                        d["walk_hr"].append(fval)
+                                    elif rtype == "HKQuantityTypeIdentifierVO2Max":
+                                        d["vo2"].append(fval)
+                                    elif rtype == "HKQuantityTypeIdentifierRespiratoryRate":
+                                        d["resp"].append(fval)
+                                    elif rtype == "HKQuantityTypeIdentifierOxygenSaturation":
+                                        d["spo2"].append(fval * 100.0 if fval <= 1.0 else fval)
+                                    elif rtype == "HKQuantityTypeIdentifierAppleSleepingBreathingDisturbances":
+                                        d["breath_disturb"].append(fval)
+                                    elif rtype == "HKQuantityTypeIdentifierAppleSleepingWristTemperature":
+                                        unit = elem.attrib.get("unit", "")
+                                        c_val = (fval - 32.0) * 5.0 / 9.0 if ("degF" in unit or fval > 50.0) else fval
+                                        d["temp"].append(c_val)
+                                    elif rtype == "HKQuantityTypeIdentifierStepCount":
+                                        d["steps"] += int(round(fval))
+                                    elif rtype == "HKQuantityTypeIdentifierActiveEnergyBurned":
+                                        d["active_cal"] += fval
+                                    elif rtype == "HKQuantityTypeIdentifierBasalEnergyBurned":
+                                        d["basal_cal"] += fval
+                                    elif rtype == "HKQuantityTypeIdentifierAppleExerciseTime":
+                                        d["exercise_min"] += fval
+                                    elif rtype == "HKQuantityTypeIdentifierAppleStandTime":
+                                        d["stand_min"] += fval
+                                    elif rtype == "HKQuantityTypeIdentifierDistanceWalkingRunning":
+                                        d["distance_km"] += fval
+                                    elif rtype == "HKQuantityTypeIdentifierDistanceCycling":
+                                        d["cycling_km"] += fval
+                                    elif rtype == "HKQuantityTypeIdentifierFlightsClimbed":
+                                        d["flights"] += int(round(fval))
+                                    elif rtype == "HKQuantityTypeIdentifierTimeInDaylight":
+                                        d["daylight"] += fval
+                                    elif rtype == "HKQuantityTypeIdentifierEnvironmentalAudioExposure":
+                                        d["audio_db"].append(fval)
+                                    elif rtype == "HKQuantityTypeIdentifierBodyMass":
+                                        d["body_mass"].append(fval)
+                                    elif rtype == "HKQuantityTypeIdentifierWalkingSpeed":
+                                        d["walk_speed"].append(fval)
+                                    elif rtype == "HKQuantityTypeIdentifierWalkingStepLength":
+                                        d["step_len"].append(fval)
+                                    elif rtype == "HKQuantityTypeIdentifierWalkingDoubleSupportPercentage":
+                                        d["double_supp"].append(fval * 100.0 if fval <= 1.0 else fval)
+                                    elif rtype == "HKQuantityTypeIdentifierWalkingAsymmetryPercentage":
+                                        d["asymmetry"].append(fval * 100.0 if fval <= 1.0 else fval)
+                                    elif rtype == "HKQuantityTypeIdentifierAppleWalkingSteadiness":
+                                        d["steadiness"].append(fval * 100.0 if fval <= 1.0 else fval)
+                                    elif rtype == "HKQuantityTypeIdentifierStairAscentSpeed":
+                                        d["stair_up"].append(fval)
+                                    elif rtype == "HKQuantityTypeIdentifierStairDescentSpeed":
+                                        d["stair_down"].append(fval)
+                                    elif rtype == "HKQuantityTypeIdentifierPhysicalEffort":
+                                        d["effort"].append(fval)
+                                    elif rtype == "HKQuantityTypeIdentifierSixMinuteWalkTestDistance":
+                                        d["six_min_m"].append(fval)
                     elem.clear()
 
     rows: List[Dict[str, Any]] = []
