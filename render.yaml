@@ -1,0 +1,19 @@
+# Render Cloud Deployment Blueprint (100% Free Tier - $0/month)
+# Connects to https://github.com/JoseMMC99/bio-coach.git for automated 24/7 hosting.
+services:
+  - type: web
+    name: bio-coach
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: "pip install -r requirements.txt && python -m unittest discover -s tests"
+    startCommand: "python run.py"
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
