@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>BioCoach AI</title>
+  
+  <!-- PWA and iOS Native Feel Configuration -->
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="./icon.jpg">
+  <link rel="icon" type="image/jpeg" href="./icon.jpg">
+  <meta name="theme-color" content="#090d16">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BioCoach">
+  
+  <!-- Tailwind CSS & Fonts -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #090d16;
+      color: #f1f5f9;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .glass {
+      background: rgba(18, 24, 38, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .safe-top { padding-top: env(safe-area-inset-top, 20px); }
+    .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 20px); }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
+
+  <!-- ========================================== -->
+  <!-- VIEW 1: BIOMETRIC TELEMETRY DASHBOARD      -->
+  <!-- ========================================== -->
+  <main id="view-dashboard" class="flex-1 px-4 safe-top pb-28 overflow-y-auto">
+    <!-- Header -->
+    <header class="flex items-center justify-between py-4">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400" id="current-date">Cargando...</p>
+        <h1 class="text-2xl font-extrabold text-white flex items-center gap-2">
+          BioCoach <span class="text-emerald-400 text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">AI</span>
+        </h1>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btn-header-sync" class="glass px-3 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white border border-slate-700/50 flex items-center gap-1.5 transition-all">
+          <span>🔄</span> Sincronizar
+        </button>
+        <button id="btn-open-shortcuts" class="glass px-3 py-1.5 rounded-full text-xs font-medium text-indigo-300 hover:text-white border border-indigo-700/50 flex items-center gap-1.5 transition-all">
+          <span>📲</span> Atajos
+        </button>
+      </div>
+    </header>
+
+    <!-- Missing Telemetry Alert / Manual Sleep Sync Banner -->
+    <div id="empty-state-banner" class="glass rounded-3xl p-5 my-3 border border-amber-500/30 bg-amber-500/5 relative overflow-hidden shadow-xl">
+      <div class="flex items-start gap-3.5">
+        <span class="text-3xl shrink-0">🌙</span>
+        <div class="flex-1">
+          <h3 class="text-sm font-bold text-amber-400">¿No se sincronizó tu último sueño?</h3>
+          <p class="text-xs text-slate-300 mt-1 leading-relaxed">
+            Si la alarma no disparó el atajo o no registraste datos aún, puedes sincronizar tu último episodio de sueño ahora mismo.
+          </p>
+          <div class="flex flex-wrap gap-2.5 mt-3.5">
+            <button id="btn-run-shortcut-ios" class="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 transition-all">
+              <span>⚡</span> Ejecutar Atajo en iPhone
+            </button>
+            <button id="btn-open-sync-modal" class="px-3.5 py-2 rounded-xl glass border border-slate-600 hover:border-slate-500 text-white font-semibold text-xs flex items-center gap-1.5 transition-all">
+              <span>✏️</span> Sincronizar a mano
+            </button>
+            <button id="btn-load-demo" class="px-3.5 py-2 rounded-xl glass border border-indigo-500/60 hover:border-indigo-400 text-indigo-300 hover:text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-indigo-500/10">
+              <span>🧪</span> Cargar 7 Días de Prueba
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hero Card: Daily Recovery Score -->
+    <section class="glass rounded-3xl p-6 my-3 relative overflow-hidden shadow-2xl">
+      <div class="flex items-center justify-between">
+        <div>
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Recuperación Diaria</span>
+          <div class="flex items-baseline gap-2 mt-1">
+            <span id="hero-score" class="text-5xl font-black text-white">--</span>
+            <span class="text-slate-400 text-xl font-bold">/100</span>
+          </div>
+          <p id="hero-status-text" class="text-sm font-medium mt-1 text-emerald-400">Analizando telemetría...</p>
+        </div>
+        <div id="score-ring" class="w-20 h-20 rounded-full border-4 border-emerald-500/20 flex items-center justify-center relative">
+          <span id="score-icon" class="text-3xl">🟢</span>
+        </div>
+      </div>
+      <!-- Gemini AI Daily Summary -->
+      <div class="mt-4 pt-4 border-t border-slate-700/50">
+        <p id="gemini-daily-verdict" class="text-sm text-slate-300 leading-relaxed italic">
+          "Esperando primera sincronización matutina desde el Apple Watch..."
+        </p>
+      </div>
+    </section>
+
+    <!-- Daily Status Bar: Recovery vs Strain Balance -->
+    <section class="glass rounded-3xl p-5 my-3 border border-slate-700/40">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-sm">⚡</span>
+          <span class="text-xs font-bold uppercase tracking-wider text-white">Estado del Día de Hoy</span>
+        </div>
+        <span id="daily-balance-status" class="text-xs font-bold text-emerald-400">🟢 En Balance Óptimo</span>
+      </div>
+      <!-- Progress Bar Track -->
+      <div class="w-full bg-slate-800/80 rounded-full h-3.5 overflow-hidden p-0.5 border border-slate-700/60 relative">
+        <div id="daily-strain-progress" class="bg-gradient-to-r from-emerald-500 via-teal-400 to-indigo-500 h-full rounded-full transition-all duration-700" style="width: 70%;"></div>
+      </div>
+      <div class="flex justify-between items-center text-[11px] text-slate-400 mt-2 font-medium">
+        <span>Capacidad de Carga: <strong id="balance-cap-val" class="text-white">--%</strong></span>
+        <span>Fatiga Acumulada: <strong id="balance-strain-val" class="text-emerald-400">Baja</strong></span>
+      </div>
+    </section>
+
+    <!-- Highlight: Worst Aspect / Primary Physiological Bottleneck -->
+    <section id="worst-aspect-card" class="glass rounded-3xl p-4 my-3 border border-rose-500/30 bg-rose-500/5 relative hidden">
+      <div class="flex items-start gap-3">
+        <span id="worst-aspect-icon" class="text-2xl shrink-0 mt-0.5">⚠️</span>
+        <div class="flex-1">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span>Punto de Atención</span>
+              <span id="worst-aspect-badge" class="px-2 py-0.5 rounded-full text-[10px] bg-rose-500/20 text-rose-300 font-extrabold">Crítico</span>
+            </h3>
+          </div>
+          <p id="worst-aspect-detail" class="text-xs text-slate-200 mt-1 leading-relaxed">
+            Cargando análisis de pilares...
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Key Metrics Grid (HRV, RHR, Sleep) -->
+    <section class="grid grid-cols-3 gap-3 my-3">
+      <div class="glass rounded-2xl p-3.5 text-center">
+        <span class="text-[10px] font-bold text-slate-400 uppercase">HRV (VFC)</span>
+        <p id="card-hrv" class="text-xl font-extrabold text-white mt-1">-- <span class="text-xs font-normal text-slate-400">ms</span></p>
+        <span class="text-[10px] text-emerald-400 font-semibold" id="card-hrv-sub">--</span>
+      </div>
+      <div class="glass rounded-2xl p-3.5 text-center">
+        <span class="text-[10px] font-bold text-slate-400 uppercase">FC Reposo</span>
+        <p id="card-rhr" class="text-xl font-extrabold text-white mt-1">-- <span class="text-xs font-normal text-slate-400">bpm</span></p>
+        <span class="text-[10px] text-slate-400 font-semibold" id="card-rhr-sub">Línea base</span>
+      </div>
+      <div class="glass rounded-2xl p-3.5 text-center">
+        <span class="text-[10px] font-bold text-slate-400 uppercase">Sueño</span>
+        <p id="card-sleep" class="text-xl font-extrabold text-white mt-1">-- <span class="text-xs font-normal text-slate-400">h</span></p>
+        <span class="text-[10px] text-indigo-400 font-semibold" id="card-sleep-sub">Meta: 8.0h</span>
+      </div>
+    </section>
+
+    <!-- 7-Day Weekly Calendar Matrix (HRV, RHR, Sleep Pillars) -->
+    <section class="glass rounded-3xl p-5 my-3">
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <h2 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+            <span>📅</span> Calendario Semanal (3 Pilares)
+          </h2>
+          <p class="text-[11px] text-slate-400 mt-0.5">Semáforo: HRV • FC Reposo • Sueño</p>
+        </div>
+        <span class="text-[10px] font-semibold text-slate-400 bg-slate-800 px-2.5 py-1 rounded-full">Últimos 7 días</span>
+      </div>
+      <!-- Dynamically Rendered 7-Day Matrix -->
+      <div id="weekly-calendar-grid" class="grid grid-cols-7 gap-1.5 pt-1"></div>
+    </section>
+
+    <!-- Weekly HRV Evolution Trend Chart -->
+    <section class="glass rounded-3xl p-5 my-3">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-bold text-white uppercase tracking-wider">Evolución de HRV</h2>
+        <span class="text-xs text-slate-400">VFC vs Media</span>
+      </div>
+      <!-- Dynamically Rendered Bars -->
+      <div id="chart-bars" class="flex items-end justify-between h-28 gap-2 pt-4 px-1"></div>
+    </section>
+
+    <!-- Recent Workout Sessions -->
+    <section class="glass rounded-3xl p-5 my-3">
+      <h2 class="text-sm font-bold text-white uppercase tracking-wider mb-3">Últimas Sesiones</h2>
+      <div id="workouts-list" class="space-y-2.5">
+        <p class="text-xs text-slate-400 italic">No hay entrenamientos registrados aún.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- ========================================== -->
+  <!-- VIEW 2: NUTRITION & METABOLISM             -->
+  <!-- ========================================== -->
+  <main id="view-nutrition" class="hidden flex-1 px-4 safe-top pb-28 overflow-y-auto">
+    <!-- Nutrition Header -->
+    <header class="py-4 border-b border-slate-800 flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-extrabold text-white flex items-center gap-2">
+          Nutrición & Metabolismo <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Mifflin-St Jeor</span>
+        </h1>
+        <p class="text-xs text-slate-400">Gasto calórico dinámico + Apple Watch</p>
+      </div>
+      <span class="text-2xl">🥑</span>
+    </header>
+
+    <!-- Anthropometric Biometrics Form -->
+    <section class="glass rounded-3xl p-5 my-3 border border-slate-700/40">
+      <h2 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+        <span>⚙️</span> Tus Datos Antropométricos
+      </h2>
+
+      <form id="nutrition-form" class="space-y-3.5">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 uppercase mb-1">Peso (kg)</label>
+            <input type="number" id="nutr-weight" step="0.5" value="75" required class="w-full glass rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 uppercase mb-1">Altura (cm)</label>
+            <input type="number" id="nutr-height" step="1" value="175" required class="w-full glass rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 uppercase mb-1">Edad (años)</label>
+            <input type="number" id="nutr-age" step="1" value="26" required class="w-full glass rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 uppercase mb-1">Género</label>
+            <select id="nutr-gender" class="w-full glass rounded-xl px-3 py-2 text-sm text-white bg-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option value="male" selected>Masculino</option>
+              <option value="female">Femenino</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 uppercase mb-1">Nivel de Actividad</label>
+          <select id="nutr-activity" class="w-full glass rounded-xl px-3 py-2 text-sm text-white bg-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <option value="sedentary">Sedentario (Poco o ningún ejercicio)</option>
+            <option value="light">Ligero (1-3 días / semana)</option>
+            <option value="moderate" selected>Moderado (3-5 días / semana)</option>
+            <option value="active">Muy Activo (6-7 días intensos)</option>
+            <option value="athlete">Atleta / Doble sesión diaria</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 uppercase mb-1">Objetivo Corporal</label>
+          <div class="grid grid-cols-3 gap-2">
+            <label class="glass p-2.5 rounded-xl border border-slate-700 flex flex-col items-center cursor-pointer hover:border-emerald-500 text-center has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10">
+              <input type="radio" name="nutr-goal" value="cut" class="sr-only">
+              <span class="text-xs font-bold text-white">Déficit</span>
+              <span class="text-[9px] text-slate-400 mt-0.5">-400 kcal</span>
+            </label>
+            <label class="glass p-2.5 rounded-xl border border-slate-700 flex flex-col items-center cursor-pointer hover:border-emerald-500 text-center has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10">
+              <input type="radio" name="nutr-goal" value="maintain" checked class="sr-only">
+              <span class="text-xs font-bold text-white">Mantener</span>
+              <span class="text-[9px] text-slate-400 mt-0.5">Equilibrio</span>
+            </label>
+            <label class="glass p-2.5 rounded-xl border border-slate-700 flex flex-col items-center cursor-pointer hover:border-emerald-500 text-center has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10">
+              <input type="radio" name="nutr-goal" value="bulk" class="sr-only">
+              <span class="text-xs font-bold text-white">Superávit</span>
+              <span class="text-[9px] text-slate-400 mt-0.5">+350 kcal</span>
+            </label>
+          </div>
+        </div>
+
+        <button type="submit" id="btn-calc-nutrition" class="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/20">
+          Calcular Calorías & Macronutrientes
+        </button>
+      </form>
+    </section>
+
+    <!-- Metabolic Results Section -->
+    <section id="nutrition-results-card" class="space-y-3">
+      <!-- Target Calories Card -->
+      <div class="glass rounded-3xl p-6 relative overflow-hidden shadow-2xl border border-emerald-500/30">
+        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Tu Presupuesto Energético Diario</span>
+        <div class="flex items-baseline gap-2 mt-1">
+          <span id="nutr-target-kcal" class="text-5xl font-black text-white">--</span>
+          <span class="text-emerald-400 text-xl font-bold">kcal / día</span>
+        </div>
+        <p id="nutr-goal-badge" class="text-xs font-semibold text-slate-300 mt-1">Calculando...</p>
+
+        <!-- BMR vs TDEE Comparison -->
+        <div class="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-slate-700/50">
+          <div>
+            <span class="text-[10px] font-bold text-slate-400 uppercase">Metabolismo Basal (BMR)</span>
+            <p id="nutr-bmr-val" class="text-lg font-bold text-white mt-0.5">-- kcal</p>
+            <p class="text-[9px] text-slate-400">Gasto en reposo total</p>
+          </div>
+          <div>
+            <span class="text-[10px] font-bold text-slate-400 uppercase">Gasto Diario (TDEE)</span>
+            <p id="nutr-tdee-val" class="text-lg font-bold text-teal-300 mt-0.5">-- kcal</p>
+            <p id="nutr-source-badge" class="text-[9px] text-slate-400">Factor de actividad</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Macronutrient Distribution Card (Proteins, Carbs, Fats) -->
+      <div class="glass rounded-3xl p-5 border border-slate-700/40">
+        <h3 class="text-xs font-bold text-white uppercase tracking-wider mb-3 flex items-center justify-between">
+          <span>Distribución de Macronutrientes</span>
+          <span class="text-[10px] text-slate-400 font-normal">Base a tu peso y objetivo</span>
+        </h3>
+
+        <!-- Visual Macro Proportion Bar -->
+        <div class="w-full h-3 rounded-full flex overflow-hidden mb-4 bg-slate-800">
+          <div id="bar-protein" class="bg-blue-500 h-full" style="width: 30%;"></div>
+          <div id="bar-carbs" class="bg-amber-400 h-full" style="width: 45%;"></div>
+          <div id="bar-fat" class="bg-rose-400 h-full" style="width: 25%;"></div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2.5 text-center">
+          <!-- Protein Metric -->
+          <div class="glass rounded-2xl p-3 border border-blue-500/20 bg-blue-500/5">
+            <span class="text-[10px] font-bold text-blue-400 uppercase">Proteína</span>
+            <p id="nutr-protein-g" class="text-lg font-black text-white mt-1">-- <span class="text-xs font-normal">g</span></p>
+            <span id="nutr-protein-kcal" class="text-[10px] text-slate-400">-- kcal</span>
+          </div>
+
+          <!-- Carbohydrates Metric -->
+          <div class="glass rounded-2xl p-3 border border-amber-500/20 bg-amber-500/5">
+            <span class="text-[10px] font-bold text-amber-400 uppercase">Carbos</span>
+            <p id="nutr-carbs-g" class="text-lg font-black text-white mt-1">-- <span class="text-xs font-normal">g</span></p>
+            <span id="nutr-carbs-kcal" class="text-[10px] text-slate-400">-- kcal</span>
+          </div>
+
+          <!-- Fats Metric -->
+          <div class="glass rounded-2xl p-3 border border-rose-500/20 bg-rose-500/5">
+            <span class="text-[10px] font-bold text-rose-400 uppercase">Grasas</span>
+            <p id="nutr-fat-g" class="text-lg font-black text-white mt-1">-- <span class="text-xs font-normal">g</span></p>
+            <span id="nutr-fat-kcal" class="text-[10px] text-slate-400">-- kcal</span>
+          </div>
+        </div>
+
+        <!-- Coach Clinical Advice -->
+        <div class="mt-4 pt-3 border-t border-slate-700/50">
+          <p id="nutr-summary-text" class="text-xs text-slate-300 leading-relaxed italic">
+            "Completa el formulario para obtener tu desglose metabólico personalizado."
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ========================================== -->
+  <!-- VIEW 3: GEMINI AI CONVERSATIONAL COACH     -->
+  <!-- ========================================== -->
+  <main id="view-chat" class="hidden flex-1 px-4 safe-top pb-28 flex flex-col justify-between">
+    <!-- Chat Header -->
+    <header class="py-4 border-b border-slate-800 flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-extrabold text-white flex items-center gap-2">
+          Coach Gemini <span class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Pro</span>
+        </h1>
+        <p class="text-xs text-slate-400">Conectado a tu base de datos de salud</p>
+      </div>
+      <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+    </header>
+
+    <!-- Messages Thread -->
+    <div id="chat-thread" class="flex-1 overflow-y-auto py-4 space-y-3.5 pr-1">
+      <div class="flex items-start gap-2.5">
+        <div class="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-xs font-bold shrink-0">AI</div>
+        <div class="glass p-3.5 rounded-2xl rounded-tl-sm text-sm leading-relaxed max-w-[85%] text-slate-200">
+          Hola. Tengo acceso directo a tus métricas de sueño, HRV y entrenamientos. ¿Qué dudas tienes sobre tu rendimiento o planificación hoy?
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Prompt Pills -->
+    <div class="flex gap-2 overflow-x-auto py-2 mb-2 no-scrollbar">
+      <button class="quick-pill shrink-0 px-3 py-1.5 rounded-full glass text-xs font-medium text-slate-300 hover:text-white border border-slate-700/50">
+        ¿Cómo va mi recuperación esta semana?
+      </button>
+      <button class="quick-pill shrink-0 px-3 py-1.5 rounded-full glass text-xs font-medium text-slate-300 hover:text-white border border-slate-700/50">
+        ¿Qué intensidad me recomiendas hoy?
+      </button>
+      <button class="quick-pill shrink-0 px-3 py-1.5 rounded-full glass text-xs font-medium text-slate-300 hover:text-white border border-slate-700/50">
+        Explica mi variación de HRV
+      </button>
+    </div>
+
+    <!-- User Input Form -->
+    <form id="chat-form" class="relative flex items-center">
+      <input 
+        id="chat-input"
+        type="text" 
+        placeholder="Pregúntale a tu BioCoach..." 
+        class="w-full glass rounded-full py-3.5 pl-4 pr-12 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+      />
+      <button 
+        type="submit" 
+        class="absolute right-1.5 w-9 h-9 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold flex items-center justify-center transition-all">
+        ↑
+      </button>
+    </form>
+  </main>
+
+  <!-- ========================================== -->
+  <!-- BOTTOM NAVIGATION BAR (3 TABS)             -->
+  <!-- ========================================== -->
+  <nav class="fixed bottom-0 inset-x-0 glass border-t border-slate-800 safe-bottom flex justify-around py-2 z-40">
+    <button id="nav-btn-dashboard" class="flex flex-col items-center gap-1 text-emerald-400 py-1 px-4 transition-colors">
+      <span class="text-lg">📊</span>
+      <span class="text-[10px] font-bold tracking-wider uppercase">Dashboard</span>
+    </button>
+    <button id="nav-btn-nutrition" class="flex flex-col items-center gap-1 text-slate-400 hover:text-white py-1 px-4 transition-colors">
+      <span class="text-lg">🥑</span>
+      <span class="text-[10px] font-bold tracking-wider uppercase">Nutrición</span>
+    </button>
+    <button id="nav-btn-chat" class="flex flex-col items-center gap-1 text-slate-400 hover:text-white py-1 px-4 transition-colors">
+      <span class="text-lg">💬</span>
+      <span class="text-[10px] font-bold tracking-wider uppercase">Coach Chat</span>
+    </button>
+  </nav>
+
+  <!-- ========================================== -->
+  <!-- MODAL: 1-CLICK APPLE SHORTCUTS DOWNLOAD    -->
+  <!-- ========================================== -->
+  <div id="shortcuts-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-end sm:items-center justify-center p-4 hidden">
+    <div class="glass w-full max-w-lg rounded-3xl p-6 border border-indigo-500/30 shadow-2xl safe-bottom animate-in fade-in duration-200">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h2 class="text-base font-bold text-white flex items-center gap-2">
+          <span>📲</span> Atajos de Apple Watch (1 Clic)
+        </h2>
+        <button id="btn-close-shortcuts-modal" class="text-slate-400 hover:text-white text-lg p-1">✕</button>
+      </div>
+
+      <div class="space-y-3.5 mt-4">
+        <p class="text-xs text-slate-300 leading-relaxed">
+          ¡No necesitas armar acciones una por una! Toca cualquier atajo desde tu iPhone en Safari para importarlo automáticamente a la app <strong>Atajos</strong>:
+        </p>
+
+        <!-- Complete ZIP Package Download Button -->
+        <a href="./shortcuts/downloads/BioCoach_Atajos_iOS.zip" download="BioCoach_Atajos_iOS.zip" class="block w-full text-center py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-indigo-500/20 transition-all">
+          📦 Descargar Todos los Atajos (.ZIP)
+        </a>
+
+        <!-- Individual Shortcuts List -->
+        <div class="space-y-2 pt-1">
+          <a href="./shortcuts/downloads/01_Recuperacion_Matutina.shortcut" class="flex items-center justify-between p-3 rounded-2xl glass border border-slate-700/60 hover:border-emerald-500 transition-all group">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">☀️</span>
+              <div>
+                <p class="text-xs font-bold text-white group-hover:text-emerald-400 transition-colors">01. Recuperación Matutina</p>
+                <p class="text-[10px] text-slate-400">Lee sueño, HRV y FC Reposo al despertar</p>
+              </div>
+            </div>
+            <span class="text-xs text-emerald-400 font-bold bg-emerald-500/10 px-2 py-1 rounded-lg">Importar</span>
+          </a>
+
+          <a href="./shortcuts/downloads/02_Fin_Entrenamiento.shortcut" class="flex items-center justify-between p-3 rounded-2xl glass border border-slate-700/60 hover:border-orange-500 transition-all group">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">🏋️</span>
+              <div>
+                <p class="text-xs font-bold text-white group-hover:text-orange-400 transition-colors">02. Fin de Entrenamiento</p>
+                <p class="text-[10px] text-slate-400">Calcula carga de esfuerzo (Strain) y kcal</p>
+              </div>
+            </div>
+            <span class="text-xs text-orange-400 font-bold bg-orange-500/10 px-2 py-1 rounded-lg">Importar</span>
+          </a>
+
+          <a href="./shortcuts/downloads/03_Check_Cardiaco.shortcut" class="flex items-center justify-between p-3 rounded-2xl glass border border-slate-700/60 hover:border-purple-500 transition-all group">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">💓</span>
+              <div>
+                <p class="text-xs font-bold text-white group-hover:text-purple-400 transition-colors">03. Check Cardíaco Rápido</p>
+                <p class="text-[10px] text-slate-400">Distingue ansiedad vs taquicardia real</p>
+              </div>
+            </div>
+            <span class="text-xs text-purple-400 font-bold bg-purple-500/10 px-2 py-1 rounded-lg">Importar</span>
+          </a>
+
+          <a href="./shortcuts/downloads/04_Registro_Voz_Nutricion.shortcut" class="flex items-center justify-between p-3 rounded-2xl glass border border-slate-700/60 hover:border-teal-500 transition-all group">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">🎙️</span>
+              <div>
+                <p class="text-xs font-bold text-white group-hover:text-teal-400 transition-colors">04. Registro de Comida por Voz</p>
+                <p class="text-[10px] text-slate-400">Dictado Siri a Gemini para estimar macros</p>
+              </div>
+            </div>
+            <span class="text-xs text-teal-400 font-bold bg-teal-500/10 px-2 py-1 rounded-lg">Importar</span>
+          </a>
+        </div>
+
+        <div class="pt-2 text-[11px] text-slate-400 leading-normal bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+          💡 <strong>Tip de instalación:</strong> Al descargarlo en Safari, iOS te preguntará si deseas añadir el atajo. Selecciona "Añadir Atajo" y coloca la IP de tu PC.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: MANUAL SLEEP EPISODE SYNC           -->
+  <!-- ========================================== -->
+  <div id="sync-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 hidden">
+    <div class="glass w-full max-w-md rounded-3xl p-6 border border-slate-700 shadow-2xl safe-bottom animate-in fade-in duration-200">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h2 class="text-base font-bold text-white flex items-center gap-2">
+          <span>🌙</span> Sincronizar Último Sueño
+        </h2>
+        <button id="btn-close-sync-modal" class="text-slate-400 hover:text-white text-lg p-1">✕</button>
+      </div>
+
+      <form id="sync-form" class="space-y-4 mt-4">
+        <p class="text-xs text-slate-300">
+          Ingresa los datos de tu última noche o déjalos vacíos si no los tienes. Gemini calculará tu recuperación:
+        </p>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+            Horas de Sueño Total <span class="text-emerald-400">*</span>
+          </label>
+          <input 
+            type="number" 
+            step="0.1" 
+            min="0" 
+            max="16" 
+            id="input-sleep" 
+            required 
+            placeholder="ej. 7.5"
+            class="w-full glass rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+              HRV / VFC (ms)
+            </label>
+            <input 
+              type="number" 
+              step="1" 
+              min="5" 
+              max="200" 
+              id="input-hrv" 
+              placeholder="ej. 60"
+              class="w-full glass rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+              FC Reposo (bpm)
+            </label>
+            <input 
+              type="number" 
+              step="1" 
+              min="35" 
+              max="140" 
+              id="input-rhr" 
+              placeholder="ej. 54"
+              class="w-full glass rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+              Sueño Profundo (h)
+            </label>
+            <input 
+              type="number" 
+              step="0.1" 
+              id="input-deep" 
+              placeholder="ej. 1.5"
+              class="w-full glass rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+              Sueño REM (h)
+            </label>
+            <input 
+              type="number" 
+              step="0.1" 
+              id="input-rem" 
+              placeholder="ej. 1.8"
+              class="w-full glass rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+        </div>
+
+        <div class="pt-2 flex gap-2">
+          <button 
+            type="button" 
+            id="btn-cancel-sync" 
+            class="flex-1 py-3 rounded-xl glass border border-slate-700 text-xs font-semibold text-slate-300 hover:text-white transition-all">
+            Cancelar
+          </button>
+          <button 
+            type="submit" 
+            id="btn-submit-sync" 
+            class="flex-1 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition-all shadow-lg shadow-emerald-500/20">
+            Analizar y Sincronizar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

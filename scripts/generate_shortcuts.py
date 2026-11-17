@@ -8,12 +8,17 @@ import plistlib
 import zipfile
 from typing import List, Dict, Any, Optional
 
+# Default cloud credentials for 24/7 serverless operation on Supabase
+DEFAULT_SUPABASE_URL = "https://elizdnhmmhjrcdfmxxlg.supabase.co"
+DEFAULT_SUPABASE_KEY = "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
+
 def generate_shortcut_plist(
     name: str,
     glyph: int,
     color: int,
     endpoint: str,
-    sample_types: Optional[List[str]] = None
+    sample_types: Optional[List[str]] = None,
+    supabase_table: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Builds the dictionary representation of an Apple Shortcut workflow plist.
@@ -24,6 +29,7 @@ def generate_shortcut_plist(
         color: Apple 32-bit RGBA color representation.
         endpoint: BioCoach API path (e.g. /api/v1/recovery).
         sample_types: HealthKit metrics captured by this shortcut.
+        supabase_table: Target Supabase table for autonomous 24/7 cloud logging.
     
     Returns:
         Dictionary conforming to Apple Workflow specification.
@@ -42,22 +48,34 @@ def generate_shortcut_plist(
                 }
             })
 
-    # 2. Text action with BioCoach Server URL
+    # Resolve target URL: defaults to direct 24/7 cloud Supabase endpoint if table provided
+    target_url = (
+        f"{DEFAULT_SUPABASE_URL}/rest/v1/{supabase_table}"
+        if supabase_table else f"http://localhost:8080{endpoint}"
+    )
+
+    # 2. Text action with target URL
     actions.append({
         "WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
         "WFWorkflowActionParameters": {
-            "WFTextActionText": f"http://localhost:8000{endpoint}"
+            "WFTextActionText": target_url
         }
     })
 
-    # 3. HTTP Network Request action (POST payload to BioCoach server)
+    # 3. HTTP Network Request action (POST payload to Supabase or BioCoach gateway)
+    http_headers = {
+        "Content-Type": "application/json"
+    }
+    if supabase_table:
+        http_headers["apikey"] = DEFAULT_SUPABASE_KEY
+        http_headers["Authorization"] = f"Bearer {DEFAULT_SUPABASE_KEY}"
+        http_headers["Prefer"] = "return=representation"
+
     actions.append({
         "WFWorkflowActionIdentifier": "is.workflow.actions.downloadurl",
         "WFWorkflowActionParameters": {
             "WFHTTPMethod": "POST",
-            "WFHTTPHeaders": {
-                "Content-Type": "application/json"
-            },
+            "WFHTTPHeaders": http_headers,
             "WFHTTPBodyType": "JSON"
         }
     })
@@ -67,7 +85,7 @@ def generate_shortcut_plist(
         "WFWorkflowActionIdentifier": "is.workflow.actions.notification",
         "WFWorkflowActionParameters": {
             "WFNotificationActionTitle": f"BioCoach - {name}",
-            "WFNotificationActionBody": "Telemetría procesada por BioCoach AI."
+            "WFNotificationActionBody": "Telemetría sincronizada con éxito en BioCoach Cloud."
         }
     })
 
@@ -83,8 +101,8 @@ def generate_shortcut_plist(
                 "ActionIndex": len(actions) - 3,
                 "Category": "Parameter",
                 "ParameterKey": "WFTextActionText",
-                "Text": f"Ingresa la dirección IP o dominio de tu servidor BioCoach para {name}:",
-                "DefaultValue": f"http://192.168.1.50:8000{endpoint}"
+                "Text": f"Servidor de destino para {name} (Nube Supabase 24/7 o IP local):",
+                "DefaultValue": target_url
             }
         ],
         "WFWorkflowActions": actions
@@ -107,6 +125,7 @@ def create_all_shortcuts(output_dir: str) -> List[str]:
             "glyph": 59511,  # Bed / Moon
             "color": 431817727,  # Emerald / Teal
             "endpoint": "/api/v1/recovery",
+            "supabase_table": "daily_recovery",
             "sample_types": ["SleepAnalysis", "RestingHeartRate", "HeartRateVariabilitySDNN"]
         },
         {
@@ -115,6 +134,7 @@ def create_all_shortcuts(output_dir: str) -> List[str]:
             "glyph": 59539,  # Flame / Workout
             "color": 4282601983,  # Orange / Red
             "endpoint": "/api/v1/workout",
+            "supabase_table": "workouts",
             "sample_types": ["ActiveEnergyBurned", "HeartRate"]
         },
         {
@@ -123,6 +143,7 @@ def create_all_shortcuts(output_dir: str) -> List[str]:
             "glyph": 59544,  # Heartbeat
             "color": 3490713343,  # Purple
             "endpoint": "/api/v1/hr-check",
+            "supabase_table": "hr_checkins",
             "sample_types": ["HeartRate"]
         },
         {
@@ -131,6 +152,7 @@ def create_all_shortcuts(output_dir: str) -> List[str]:
             "glyph": 59610,  # Apple / Food
             "color": 1446700031,  # Green
             "endpoint": "/api/v1/nutrition",
+            "supabase_table": "nutrition_logs",
             "sample_types": None
         }
     ]
@@ -142,7 +164,8 @@ def create_all_shortcuts(output_dir: str) -> List[str]:
             glyph=spec["glyph"],
             color=spec["color"],
             endpoint=spec["endpoint"],
-            sample_types=spec["sample_types"]
+            sample_types=spec["sample_types"],
+            supabase_table=spec.get("supabase_table")
         )
         file_path = os.path.join(output_dir, spec["filename"])
         with open(file_path, "wb") as f:
@@ -154,6 +177,15 @@ def create_all_shortcuts(output_dir: str) -> List[str]:
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
         for p in generated_paths:
             zipf.write(p, arcname=os.path.basename(p))
+
+    # Mirror to webapp/shortcuts/downloads for static GitHub Pages hosting
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    webapp_dir = os.path.join(project_root, "webapp", "shortcuts", "downloads")
+    if output_dir != webapp_dir:
+        os.makedirs(webapp_dir, exist_ok=True)
+        import shutil
+        for p in generated_paths + [zip_path]:
+            shutil.copy2(p, os.path.join(webapp_dir, os.path.basename(p)))
 
     return generated_paths
 

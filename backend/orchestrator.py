@@ -28,7 +28,7 @@ class MorningVerdict:
 class GeminiOrchestrator:
     """Orchestrates structured Gemini Flash calls with rich biometric context."""
 
-    API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+    API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent"
 
     def __init__(self, api_key: str):
         self.api_key = api_key
