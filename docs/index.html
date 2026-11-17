@@ -668,7 +668,7 @@
   <!-- MODAL: 1-CLICK APPLE SHORTCUTS & SETUP GUIDE                   -->
   <!-- ============================================================== -->
   <div id="shortcuts-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-end sm:items-center justify-center p-4 hidden">
-    <div class="glass-card w-full max-w-lg rounded-3xl p-6 border border-violet-500/30 shadow-2xl safe-bottom animate-in fade-in duration-200 max-h-[90vh] overflow-y-auto no-scrollbar">
+    <div class="glass-card w-full max-w-lg rounded-3xl p-6 border border-violet-500/30 shadow-2xl safe-bottom animate-in fade-in duration-200 max-h-[90vh] overflow-y-auto no-scrollbar space-y-4">
       <div class="flex items-center justify-between pb-3 border-b border-white/5">
         <h2 class="text-sm font-bold text-white flex items-center gap-2">
           <span>📲</span> Atajos de Apple Watch & Automatización
@@ -676,7 +676,162 @@
         <button id="btn-close-shortcuts-modal" class="text-slate-400 hover:text-white text-lg p-1">✕</button>
       </div>
 
-      <div class="space-y-4 mt-4">
+      <!-- Tab Switcher: Apple Intelligence (Prompts) vs Manual (Paso a Paso) -->
+      <div class="flex items-center justify-center p-1 rounded-2xl bg-slate-900/80 border border-white/10">
+        <button id="shortcuts-tab-ai" class="flex-1 py-2 rounded-xl text-xs font-black text-cyan-400 bg-cyan-500/10 transition-all flex items-center justify-center gap-1.5">
+          <span>🤖</span> Apple Intelligence (Prompts)
+        </button>
+        <button id="shortcuts-tab-manual" class="flex-1 py-2 rounded-xl text-xs font-black text-slate-400 hover:text-white transition-all flex items-center justify-center gap-1.5">
+          <span>🛠️</span> Manual (Paso a Paso)
+        </button>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- TAB 1: APPLE INTELLIGENCE & SIRI PROMPTS                     -->
+      <!-- ============================================================ -->
+      <div id="shortcuts-panel-ai" class="space-y-4">
+        
+        <div class="p-3.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-xs text-slate-300 space-y-1">
+          <p class="font-bold text-cyan-400 flex items-center gap-1.5">
+            <span>✨</span> Generación Automática con Siri / Apple Intelligence
+          </p>
+          <p class="text-[11px] leading-relaxed">
+            Copia cada prompt y pídeselo a Siri en tu iPhone. Creará el atajo en segundos con tu clave de atleta activa: <code class="text-cyan-300 font-mono font-bold" id="ai-active-pin-badge">atleta_privado</code>.
+          </p>
+        </div>
+
+        <!-- Prompt 1: Recuperación Matutina -->
+        <div class="glass-card p-4 rounded-2xl border border-white/10 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-black text-white flex items-center gap-2">
+              <span>☀️</span> 01. Recuperación Matutina
+            </h3>
+            <button type="button" class="btn-copy-prompt text-[10px] px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black shadow-md shadow-cyan-500/20 transition-all active:scale-95" data-target="prompt-text-recovery">
+              📋 Copiar Prompt
+            </button>
+          </div>
+          <p class="text-[10px] text-slate-400">Extrae sueño, HRV y FC reposo de Apple Health y los sube a Supabase.</p>
+          <pre id="prompt-text-recovery" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create a new Apple Shortcut named "Recuperación Matutina".
+Step 1: Find the latest Health sample for "Sleep Analysis" (limit to 1 sample, sorted by newest end date) and store the duration in hours as a variable.
+Step 2: Find the latest Health sample for "Resting Heart Rate" (limit to 1 sample, sorted by newest) and store as a variable.
+Step 3: Find the latest Health sample for "Heart Rate Variability SDNN" (limit to 1 sample, sorted by newest) and store as a variable.
+Step 4: Create a Dictionary with:
+- "recorded_date": Current Date formatted as yyyy-MM-dd
+- "sleep_hours": the Sleep duration in hours
+- "resting_hr": the Resting Heart Rate value
+- "hrv_ms": the Heart Rate Variability value
+- "athlete_id": "{PIN}"
+Step 5: Get Contents of URL using HTTP POST:
+- URL: "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date"
+- Request Body: JSON with the Dictionary
+- Headers:
+  * "Content-Type": "application/json"
+  * "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
+  * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
+  * "Prefer": "resolution=merge-duplicates,return=representation"
+  * "x-athlete-token": "{PIN}"
+Step 6: Show Notification with title "BioCoach - Recuperación Matutina" and body "Telemetría sincronizada con éxito en BioCoach Cloud."</pre>
+        </div>
+
+        <!-- Prompt 2: Fin de Entrenamiento -->
+        <div class="glass-card p-4 rounded-2xl border border-white/10 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-black text-white flex items-center gap-2">
+              <span>🔥</span> 02. Fin de Entrenamiento
+            </h3>
+            <button type="button" class="btn-copy-prompt text-[10px] px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black shadow-md shadow-amber-500/20 transition-all active:scale-95" data-target="prompt-text-workout">
+              📋 Copiar Prompt
+            </button>
+          </div>
+          <p class="text-[10px] text-slate-400">Lee calorías activas, duración y frecuencia cardíaca del último entreno.</p>
+          <pre id="prompt-text-workout" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create a new Apple Shortcut named "Fin de Entrenamiento".
+Step 1: Find the latest workout session from HealthKit (limit to 1, sorted by newest end date).
+Step 2: Extract workout activity type, total duration in minutes, active calories burned, average heart rate, and maximum heart rate.
+Step 3: Create a Dictionary with:
+- "workout_type": Activity type as text
+- "duration_minutes": Duration in minutes
+- "active_calories": Active energy burned in kcal
+- "avg_hr": Average heart rate
+- "max_hr": Maximum heart rate
+- "athlete_id": "{PIN}"
+Step 4: Make an HTTP POST request using Get Contents of URL:
+- URL: "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/workouts"
+- Request Body: JSON with the Dictionary
+- Headers:
+  * "Content-Type": "application/json"
+  * "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
+  * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
+  * "Prefer": "return=representation"
+  * "x-athlete-token": "{PIN}"
+Step 5: Show Notification with title "BioCoach - Fin de Entrenamiento" and body "Sesión registrada y evaluada en BioCoach Cloud."</pre>
+        </div>
+
+        <!-- Prompt 3: Check Cardíaco -->
+        <div class="glass-card p-4 rounded-2xl border border-white/10 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-black text-white flex items-center gap-2">
+              <span>💓</span> 03. Check Cardíaco
+            </h3>
+            <button type="button" class="btn-copy-prompt text-[10px] px-3 py-1.5 rounded-xl bg-violet-500 hover:bg-violet-400 text-white font-black shadow-md shadow-violet-500/20 transition-all active:scale-95" data-target="prompt-text-hr">
+              📋 Copiar Prompt
+            </button>
+          </div>
+          <p class="text-[10px] text-slate-400">Toma una instantánea de pulso y variabilidad cardíaca en tiempo real.</p>
+          <pre id="prompt-text-hr" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create a new Apple Shortcut named "Check Cardíaco".
+Step 1: Find the latest Health sample for "Heart Rate" (limit 1, newest).
+Step 2: Find the latest Health sample for "Heart Rate Variability SDNN" (limit 1, newest).
+Step 3: Create a Dictionary with:
+- "current_hr": Heart rate value
+- "current_hrv": Heart rate variability value
+- "user_sensation": "chequeo_rapido"
+- "athlete_id": "{PIN}"
+Step 4: Send an HTTP POST request using Get Contents of URL:
+- URL: "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/hr_checkins"
+- Request Body: JSON with the Dictionary
+- Headers:
+  * "Content-Type": "application/json"
+  * "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
+  * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
+  * "Prefer": "return=representation"
+  * "x-athlete-token": "{PIN}"
+Step 5: Show Notification with title "BioCoach - Check Cardíaco" and body "Pulso registrado correctamente."</pre>
+        </div>
+
+        <!-- Prompt 4: Registro de Nutrición por Voz -->
+        <div class="glass-card p-4 rounded-2xl border border-white/10 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-black text-white flex items-center gap-2">
+              <span>🎙️</span> 04. Registro de Nutrición por Voz
+            </h3>
+            <button type="button" class="btn-copy-prompt text-[10px] px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black shadow-md shadow-emerald-500/20 transition-all active:scale-95" data-target="prompt-text-meal">
+              📋 Copiar Prompt
+            </button>
+          </div>
+          <p class="text-[10px] text-slate-400">Dictado por voz para que Gemini estime calorías y macronutrientes.</p>
+          <pre id="prompt-text-meal" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create a new Apple Shortcut named "Registro de Nutrición por Voz".
+Step 1: Ask for Text Input with prompt "¿Qué comiste?".
+Step 2: Create a Dictionary with:
+- "raw_text": Provided Text Input
+- "meal_type": "comida"
+- "athlete_id": "{PIN}"
+Step 3: Make an HTTP POST request to:
+- URL: "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/nutrition_logs"
+- Request Body: JSON with the Dictionary
+- Headers:
+  * "Content-Type": "application/json"
+  * "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
+  * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
+  * "Prefer": "return=representation"
+  * "x-athlete-token": "{PIN}"
+Step 4: Show Notification with title "BioCoach - Nutrición" and body "Comida enviada a BioCoach para análisis de macros."</pre>
+        </div>
+
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- TAB 2: MANUAL CONFIGURATION & STEP-BY-STEP RECIPE            -->
+      <!-- ============================================================ -->
+      <div id="shortcuts-panel-manual" class="hidden space-y-4">
         
         <!-- iOS Unsigned Shortcut Warning & Solution Notice -->
         <div class="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 space-y-1.5">
@@ -684,7 +839,7 @@
             <span>⚠️</span> ¿iOS te mostró: "Importing unsigned shortcut files is not supported"?
           </p>
           <p class="text-[11px] text-slate-300 leading-relaxed">
-            Apple bloquea la apertura de archivos <code class="text-amber-300 font-mono">.shortcut</code> descargados de la web si no provienen de un enlace oficial de iCloud. Para tener tu atajo funcionando al 100% en tu iPhone, <strong>ármalo en 2 minutos</strong> con la receta oficial o usa la sincronización inteligente:
+            Apple bloquea la apertura de archivos <code class="text-amber-300 font-mono">.shortcut</code> descargados de internet si no provienen de un enlace oficial de iCloud. Para que funcione en tu iPhone, ármalo en <strong>2 minutos</strong> con la siguiente receta:
           </p>
         </div>
 
@@ -707,15 +862,15 @@
             </li>
             <li>
               Agrega la acción <strong>"Diccionario"</strong> con las claves:
-              <span class="block text-[10px] font-mono text-cyan-300 pl-4">sleep_hours, resting_hr, hrv_ms</span>
+              <span class="block text-[10px] font-mono text-cyan-300 pl-4">recorded_date, sleep_hours, resting_hr, hrv_ms, athlete_id</span>
             </li>
             <li>
               Agrega la acción <strong>"Obtener contenido de URL"</strong> en método <strong class="text-emerald-400">POST</strong>:
               <div class="mt-2 space-y-1.5 pl-2">
                 
                 <div class="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 border border-white/5">
-                  <span class="text-[10px] text-slate-400 truncate mr-2">URL: <span class="text-white font-mono select-all">https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery</span></span>
-                  <button type="button" class="btn-copy-helper shrink-0 text-[10px] px-2 py-1 rounded bg-cyan-500/20 text-cyan-300 font-bold hover:bg-cyan-500/30" data-copy="https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery">Copiar</button>
+                  <span class="text-[10px] text-slate-400 truncate mr-2">URL: <span class="text-white font-mono select-all">https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date</span></span>
+                  <button type="button" class="btn-copy-helper shrink-0 text-[10px] px-2 py-1 rounded bg-cyan-500/20 text-cyan-300 font-bold hover:bg-cyan-500/30" data-copy="https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date">Copiar</button>
                 </div>
 
                 <div class="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 border border-white/5">
@@ -741,7 +896,7 @@
           <span class="text-lg">⏰</span>
           <div>
             <p class="font-bold text-emerald-400">Automatización al Despertar (100% en silencio)</p>
-            <p class="text-[11px] text-slate-400 mt-0.5">En la pestaña <strong>Automatización</strong> de Atajos, crea una regla: <em>"Al detener la alarma"</em> → <em>"Ejecutar inmediatamente Recuperación Matutina"</em>. ¡Así tu reloj lo sube solo cada mañana sin que toques nada!</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">En la pestaña <strong>Automatización</strong> de Atajos, crea una regla: <em>"Al detener la alarma"</em> → <em>"Ejecutar inmediatamente Recuperación Matutina"</em>. ¡Tu reloj lo enviará solo cada mañana!</p>
           </div>
         </div>
 
@@ -754,6 +909,7 @@
         </div>
 
       </div>
+
     </div>
   </div>
 

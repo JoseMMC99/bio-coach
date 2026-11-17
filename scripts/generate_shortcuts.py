@@ -57,10 +57,12 @@ def generate_shortcut_plist(
             })
 
     # Resolve target URL: defaults to direct 24/7 cloud Supabase endpoint if table provided
-    target_url = (
-        f"{DEFAULT_SUPABASE_URL}/rest/v1/{supabase_table}"
-        if supabase_table else f"http://localhost:8080{endpoint}"
-    )
+    # For daily_recovery, append on_conflict=recorded_date to allow multiple daily updates without 409 conflict
+    if supabase_table:
+        conflict_param = "?on_conflict=recorded_date" if supabase_table == "daily_recovery" else ""
+        target_url = f"{DEFAULT_SUPABASE_URL}/rest/v1/{supabase_table}{conflict_param}"
+    else:
+        target_url = f"http://localhost:8080{endpoint}"
 
     # 2. Text action with target URL
     actions.append({
@@ -77,7 +79,7 @@ def generate_shortcut_plist(
     if supabase_table:
         http_headers["apikey"] = DEFAULT_SUPABASE_KEY
         http_headers["Authorization"] = f"Bearer {DEFAULT_SUPABASE_KEY}"
-        http_headers["Prefer"] = "return=representation"
+        http_headers["Prefer"] = "resolution=merge-duplicates,return=representation"
         http_headers["x-athlete-token"] = resolved_athlete_token
 
     actions.append({

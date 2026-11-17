@@ -147,9 +147,24 @@ function updateSecretDotUI() {
     }
   }
 
+  const aiPinBadge = document.getElementById('ai-active-pin-badge');
+  if (aiPinBadge) {
+    aiPinBadge.textContent = athleteKey || 'atleta_privado';
+  }
+
   if (shortcutsPinBadge) {
     shortcutsPinBadge.textContent = athleteKey || 'atleta_privado';
   }
+
+  // Update prompt templates with active pin
+  const effectivePin = athleteKey || 'atleta_privado';
+  ['prompt-text-recovery', 'prompt-text-workout', 'prompt-text-hr', 'prompt-text-meal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      if (!el.dataset.template) el.dataset.template = el.textContent;
+      el.textContent = el.dataset.template.replace(/\{PIN\}/g, effectivePin);
+    }
+  });
 
   if (pinStatusText) {
     if (athleteKey) {
@@ -1331,19 +1346,81 @@ function initManualSync() {
   }
 }
 
-// 14. Apple Shortcuts & Automation Recipe Modal
+// 14. Apple Shortcuts & Automation Recipe Modal (Apple Intelligence & Manual Tabs)
 function initShortcutsModal() {
   const modal = document.getElementById('shortcuts-modal');
   const btnOpen = document.getElementById('btn-open-shortcuts');
   const btnClose = document.getElementById('btn-close-shortcuts-modal');
   const btnCopyToken = document.getElementById('btn-copy-athlete-token');
 
-  if (btnOpen && modal) {
-    btnOpen.addEventListener('click', () => modal.classList.remove('hidden'));
+  const tabAi = document.getElementById('shortcuts-tab-ai');
+  const tabManual = document.getElementById('shortcuts-tab-manual');
+  const panelAi = document.getElementById('shortcuts-panel-ai');
+  const panelManual = document.getElementById('shortcuts-panel-manual');
+
+  function syncShortcutsPromptsWithActivePin() {
+    const currentPin = getAthleteKey() || 'atleta_privado';
+    const badge = document.getElementById('shortcuts-pin-badge');
+    const aiBadge = document.getElementById('ai-active-pin-badge');
+
+    if (badge) badge.textContent = currentPin;
+    if (aiBadge) aiBadge.textContent = currentPin;
+
+    // Dynamically replace {PIN} in all prompt pre blocks
+    ['prompt-text-recovery', 'prompt-text-workout', 'prompt-text-hr', 'prompt-text-meal'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && !el.dataset.template) {
+        el.dataset.template = el.textContent;
+      }
+      if (el && el.dataset.template) {
+        el.textContent = el.dataset.template.replace(/\{PIN\}/g, currentPin);
+      }
+    });
   }
+
+  // Dual Tab Switching
+  if (tabAi && tabManual) {
+    tabAi.addEventListener('click', () => {
+      tabAi.className = 'flex-1 py-2 rounded-xl text-xs font-black text-cyan-400 bg-cyan-500/10 transition-all flex items-center justify-center gap-1.5';
+      tabManual.className = 'flex-1 py-2 rounded-xl text-xs font-black text-slate-400 hover:text-white transition-all flex items-center justify-center gap-1.5';
+      if (panelAi) panelAi.classList.remove('hidden');
+      if (panelManual) panelManual.classList.add('hidden');
+    });
+
+    tabManual.addEventListener('click', () => {
+      tabManual.className = 'flex-1 py-2 rounded-xl text-xs font-black text-cyan-400 bg-cyan-500/10 transition-all flex items-center justify-center gap-1.5';
+      tabAi.className = 'flex-1 py-2 rounded-xl text-xs font-black text-slate-400 hover:text-white transition-all flex items-center justify-center gap-1.5';
+      if (panelManual) panelManual.classList.remove('hidden');
+      if (panelAi) panelAi.classList.add('hidden');
+    });
+  }
+
+  if (btnOpen && modal) {
+    btnOpen.addEventListener('click', () => {
+      syncShortcutsPromptsWithActivePin();
+      modal.classList.remove('hidden');
+    });
+  }
+
   if (btnClose && modal) {
     btnClose.addEventListener('click', () => modal.classList.add('hidden'));
   }
+
+  // 1-Click Prompt Copiers for Apple Intelligence & Siri
+  document.querySelectorAll('.btn-copy-prompt').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const targetId = btn.getAttribute('data-target');
+      const targetEl = document.getElementById(targetId);
+      if (targetEl) {
+        const currentPin = getAthleteKey() || 'atleta_privado';
+        const textToCopy = targetEl.textContent.replace(/\{PIN\}/g, currentPin);
+        await navigator.clipboard.writeText(textToCopy);
+        const orig = btn.textContent;
+        btn.textContent = '¡Copiado!';
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      }
+    });
+  });
 
   // Copy helper for URLs and API keys
   document.querySelectorAll('.btn-copy-helper').forEach(btn => {
@@ -1368,4 +1445,7 @@ function initShortcutsModal() {
       setTimeout(() => { btnCopyToken.textContent = orig; }, 1500);
     });
   }
+
+  // Initial sync on load
+  syncShortcutsPromptsWithActivePin();
 }
