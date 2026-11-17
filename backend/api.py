@@ -120,9 +120,16 @@ def create_server(host: str = "0.0.0.0", port: int = 8000, service: Optional[Bio
                 target_file = os.path.join(webapp_dir, "index.html")
                 self._serve_file(target_file, "text/html; charset=utf-8")
                 return
-            elif req_path in ["/manifest.json", "/app.js", "/sw.js"]:
+            elif req_path in ["/manifest.json", "/app.js", "/sw.js", "/icon.jpg"]:
                 target_file = os.path.join(webapp_dir, req_path.lstrip("/"))
-                mime = "application/javascript" if req_path.endswith(".js") else "application/json"
+                if req_path.endswith(".js"):
+                    mime = "application/javascript"
+                elif req_path.endswith(".json"):
+                    mime = "application/json"
+                elif req_path.endswith(".jpg"):
+                    mime = "image/jpeg"
+                else:
+                    mime = "application/octet-stream"
                 self._serve_file(target_file, mime)
                 return
             elif req_path.startswith("/shortcuts/"):
