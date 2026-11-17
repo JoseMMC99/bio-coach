@@ -103,8 +103,8 @@ python scripts/test_connection.py
 # 5. Ejecutar suite de pruebas unitarias y de integración
 python -m unittest discover -s tests -v
 
-# 6. Iniciar el servidor local y abrir la WebApp PWA
-python backend/api.py
+# 6. Iniciar el servidor unificado y abrir la WebApp PWA
+python run.py
 # Acceder desde el navegador: http://localhost:8080
 ```
 

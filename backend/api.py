@@ -1,24 +1,31 @@
 """
-HTTP API Gateway para BioCoach AI.
-Enruta peticiones de Apple Shortcuts hacia la capa de servicio y valida payloads.
-Puede ejecutarse de forma independiente sin dependencias externas (usa http.server).
+HTTP API Gateway and static file server for BioCoach AI.
+Routes Apple Shortcuts webhooks to the service layer and validates payloads.
+Can run standalone with zero external dependencies using Python's built-in http.server.
 """
 import os
+import sys
 import json
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import Tuple, Dict, Any, Optional
+
+# Ensure project root is in sys.path so execution works from any working directory
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 from backend.service import BioCoachService
 from backend.payload_validator import ShortcutPayloadValidator, ValidationError
 
 class BioCoachAPIHandler:
-    """Enrutador agnóstico de framework para requests HTTP."""
+    """Framework-agnostic HTTP request router and endpoint handler."""
 
     def __init__(self, service: BioCoachService):
         self.service = service
         self.validator = ShortcutPayloadValidator()
 
     def handle_request(self, method: str, path: str, body: Optional[Any]) -> Tuple[int, Dict[str, Any]]:
-        """Mapea método, ruta y cuerpo hacia el servicio correspondiente."""
+        """Maps HTTP method, path and body to the appropriate service pipeline."""
         clean_path = path.split("?")[0].rstrip("/")
 
         if method == "GET" and clean_path in ["", "/health", "/api/v1/health"]:
@@ -70,12 +77,10 @@ class BioCoachAPIHandler:
 
             elif clean_path in ["/api/v1/nutrition", "/nutrition"]:
                 cleaned = self.validator.validate_nutrition_payload(body)
-                # Registro directo de nutrición
                 db_payload = {
                     "raw_text": cleaned["raw_text"],
                     "meal_type": cleaned["meal_type"]
                 }
-                # Si el servicio tiene endpoint de supabase
                 headers = self.service._get_headers(prefer="return=representation")
                 req_url = f"{self.service.supabase_url}/rest/v1/nutrition_logs"
                 data = json.dumps(db_payload).encode("utf-8")
@@ -98,13 +103,13 @@ class BioCoachAPIHandler:
             return 500, {"status": "internal_error", "message": str(e)}
 
 def create_server(host: str = "0.0.0.0", port: int = 8000, service: Optional[BioCoachService] = None):
-    """Crea una instancia de servidor HTTP nativo."""
+    """Instantiates a native Python HTTP server serving both REST endpoints and PWA assets."""
     handler_logic = BioCoachAPIHandler(service=service)
 
     class CustomServerHandler(BaseHTTPRequestHandler):
         def do_GET(self):
-            # Servir archivos estáticos de la WebApp PWA si la ruta coincide
-            webapp_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "webapp")
+            # Serve static files from webapp/ directory when matching PWA routes
+            webapp_dir = os.path.join(PROJECT_ROOT, "webapp")
             req_path = self.path.split("?")[0]
 
             if req_path in ["/", "/index.html"]:
@@ -120,17 +125,6 @@ def create_server(host: str = "0.0.0.0", port: int = 8000, service: Optional[Bio
             status, res = handler_logic.handle_request("GET", self.path, None)
             self._send_json(status, res)
 
-        def _serve_file(self, file_path: str, content_type: str):
-            if os.path.exists(file_path):
-                self.send_response(200)
-                self.send_header("Content-Type", content_type)
-                self.end_headers()
-                with open(file_path, "rb") as f:
-                    self.wfile.write(f.read())
-            else:
-                self.send_response(404)
-                self.end_headers()
-
         def do_POST(self):
             content_len = int(self.headers.get("Content-Length", 0))
             body = None
@@ -143,6 +137,17 @@ def create_server(host: str = "0.0.0.0", port: int = 8000, service: Optional[Bio
             status, res = handler_logic.handle_request("POST", self.path, body)
             self._send_json(status, res)
 
+        def _serve_file(self, file_path: str, content_type: str):
+            if os.path.exists(file_path):
+                self.send_response(200)
+                self.send_header("Content-Type", content_type)
+                self.end_headers()
+                with open(file_path, "rb") as f:
+                    self.wfile.write(f.read())
+            else:
+                self.send_response(404)
+                self.end_headers()
+
         def _send_json(self, status: int, data: Dict[str, Any]):
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
@@ -152,7 +157,7 @@ def create_server(host: str = "0.0.0.0", port: int = 8000, service: Optional[Bio
     return HTTPServer((host, port), CustomServerHandler)
 
 if __name__ == "__main__":
-    # Permite ejecutar el servidor localmente para pruebas
+    # Allows starting the server directly from command line
     from scripts.test_connection import load_env
     env = load_env()
     srv = BioCoachService(
