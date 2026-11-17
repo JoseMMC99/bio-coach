@@ -185,6 +185,25 @@ function updateSecretDotUI() {
   if (btnSubmitPin) {
     btnSubmitPin.textContent = athleteKey ? '💾 Actualizar PIN de Atleta' : '💾 Guardar PIN y Desbloquear';
   }
+
+  // Update header vault status pill
+  const vaultStatusDot = document.getElementById('vault-status-dot');
+  const vaultStatusLabel = document.getElementById('vault-status-label');
+  if (vaultStatusLabel) {
+    if (athleteKey) {
+      vaultStatusLabel.textContent = `Privado (${athleteKey})`;
+      vaultStatusLabel.className = 'text-emerald-400 font-bold';
+      if (vaultStatusDot) {
+        vaultStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+      }
+    } else {
+      vaultStatusLabel.textContent = 'Modo Demo (PIN)';
+      vaultStatusLabel.className = 'text-amber-400 font-bold';
+      if (vaultStatusDot) {
+        vaultStatusDot.className = 'w-2 h-2 rounded-full bg-amber-400';
+      }
+    }
+  }
 }
 
 function initDiscreetVaultAccess() {
@@ -196,10 +215,28 @@ function initDiscreetVaultAccess() {
   const btnCancel = document.getElementById('btn-cancel-pin');
   const btnExitVault = document.getElementById('btn-exit-vault');
   const btnToggleVisibility = document.getElementById('btn-toggle-pin-visibility');
+  const btnVaultStatus = document.getElementById('btn-vault-status');
+  const btnDefaultPin = document.getElementById('btn-use-default-pin');
   const form = document.getElementById('pin-form');
   const inputPin = document.getElementById('input-secret-pin');
 
   updateSecretDotUI();
+
+  // Header status pill click opens PIN modal
+  if (btnVaultStatus) {
+    btnVaultStatus.addEventListener('click', openPinModal);
+  }
+
+  // 1-Click Default PIN helper
+  if (btnDefaultPin) {
+    btnDefaultPin.addEventListener('click', () => {
+      localStorage.setItem('BIOCOACH_ATHLETE_KEY', 'atleta_privado');
+      closePinModal();
+      updateSecretDotUI();
+      initDashboard();
+      alert('🔓 Bóveda privada conectada con PIN "atleta_privado".\n\nConsultando telemetría de Supabase...');
+    });
+  }
 
   // Triple-tap / click detection
   let tapCount = 0;
@@ -381,11 +418,11 @@ async function fetchDirectFromSupabase(athleteKey) {
   };
 
   const recUrl = athleteKey
-    ? `${SUPABASE_CONFIG.url}/rest/v1/daily_recovery?athlete_id=eq.${encodeURIComponent(athleteKey)}&is_demo=eq.false&order=recorded_date.desc&limit=7`
+    ? `${SUPABASE_CONFIG.url}/rest/v1/daily_recovery?athlete_id=eq.${encodeURIComponent(athleteKey)}&order=recorded_date.desc&limit=7`
     : `${SUPABASE_CONFIG.url}/rest/v1/daily_recovery?is_demo=eq.true&order=recorded_date.desc&limit=7`;
 
   const wkUrl = athleteKey
-    ? `${SUPABASE_CONFIG.url}/rest/v1/workouts?athlete_id=eq.${encodeURIComponent(athleteKey)}&is_demo=eq.false&order=created_at.desc&limit=6`
+    ? `${SUPABASE_CONFIG.url}/rest/v1/workouts?athlete_id=eq.${encodeURIComponent(athleteKey)}&order=created_at.desc&limit=6`
     : `${SUPABASE_CONFIG.url}/rest/v1/workouts?is_demo=eq.true&order=created_at.desc&limit=6`;
 
   const [recRes, wkRes] = await Promise.all([
@@ -1243,6 +1280,19 @@ function initManualSync() {
   // Global Header Sync Button: queries cloud directly, refreshes and organizes
   if (btnHeaderSync) {
     btnHeaderSync.addEventListener('click', async () => {
+      const athleteKey = getAthleteKey();
+      if (!athleteKey) {
+        if (confirm('ℹ️ Tu WebApp está en Modo Demostración de portafolio.\n\nPara ver los datos reales enviados por tu Apple Watch, debes ingresar tu PIN de atleta.\n\n¿Deseas ingresar tu PIN ahora?')) {
+          const pinModal = document.getElementById('secret-pin-modal');
+          if (pinModal) {
+            updateSecretDotUI();
+            pinModal.classList.remove('hidden');
+            document.getElementById('input-secret-pin')?.focus();
+          }
+        }
+        return;
+      }
+
       const origText = btnHeaderSync.innerHTML;
       btnHeaderSync.innerHTML = '<span>⏳</span> Consultando...';
       try {
@@ -1275,11 +1325,29 @@ function initManualSync() {
   // Cloud Sync / Re-organize Telemetry from Supabase
   if (btnFetchCloud) {
     btnFetchCloud.addEventListener('click', async () => {
+      const athleteKey = getAthleteKey();
+      if (!athleteKey) {
+        alert('ℹ️ Tu WebApp está en Modo Demostración de portafolio.\n\nPara ver tus mediciones privadas de Apple Watch, ingresa tu PIN de atleta (o usa "atleta_privado").');
+        closeModal();
+        const pinModal = document.getElementById('secret-pin-modal');
+        if (pinModal) {
+          updateSecretDotUI();
+          pinModal.classList.remove('hidden');
+          document.getElementById('input-secret-pin')?.focus();
+        }
+        return;
+      }
+
       btnFetchCloud.textContent = 'Consultando Supabase...';
       try {
         await initDashboard();
         closeModal();
-        alert('✅ Telemetría más reciente consultada y organizada con éxito.');
+        const currentData = window.currentDashboardData;
+        if (currentData && currentData.today) {
+          alert(`✅ ¡Telemetría organizada con éxito!\n\nScore: ${currentData.today.score}%\nVFC: ${currentData.today.hrv || '--'} ms\nFC Reposo: ${currentData.today.rhr || '--'} bpm\nSueño: ${currentData.today.sleep || '--'} h\nBóveda: ${athleteKey}`);
+        } else {
+          alert(`ℹ️ Conectado a Supabase con PIN "${athleteKey}".\n\nAún no hay mediciones registradas hoy. Ejecuta el atajo en tu iPhone o usa el botón "Organizar y Confirmar Telemetría" abajo para enviar una lectura.`);
+        }
       } catch (err) {
         alert('Error al consultar la nube: ' + err.message);
       } finally {
@@ -1305,7 +1373,7 @@ function initManualSync() {
       try {
         const todayStr = new Date().toISOString().slice(0, 10);
         const evalRes = evaluateDailyPillars(sleepHours, hrvVal, rhrVal, 55.0, 54.0, 8.0);
-        const athleteKey = getAthleteKey();
+        const athleteKey = getAthleteKey() || 'atleta_privado';
 
         const payload = {
           recorded_date: todayStr,
@@ -1316,26 +1384,33 @@ function initManualSync() {
           hrv_ms: hrvVal,
           recovery_score: evalRes.score,
           gemini_verdict: `Recuperación ${evalRes.score}%. Sistema ${evalRes.trafficLight === 'GREEN' ? 'óptimo' : 'con fatiga'}.`,
-          athlete_id: athleteKey || 'public_demo',
-          is_demo: !athleteKey
+          athlete_id: athleteKey,
+          is_demo: false
         };
 
-        const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/daily_recovery`, {
+        const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/daily_recovery?on_conflict=recorded_date`, {
           method: 'POST',
           headers: {
             'apikey': SUPABASE_CONFIG.publishableKey,
             'Authorization': `Bearer ${SUPABASE_CONFIG.publishableKey}`,
             'Content-Type': 'application/json',
-            'Prefer': 'return=representation',
-            'x-athlete-token': athleteKey || 'public_demo'
+            'Prefer': 'resolution=merge-duplicates,return=representation',
+            'x-athlete-token': athleteKey
           },
           body: JSON.stringify(payload)
         });
 
         if (!res.ok) throw new Error("Error al guardar en Supabase: " + res.status);
 
+        // Ensure athlete key is set in localStorage if previously empty
+        if (!getAthleteKey()) {
+          localStorage.setItem('BIOCOACH_ATHLETE_KEY', athleteKey);
+          updateSecretDotUI();
+        }
+
         closeModal();
         await initDashboard();
+        alert(`✅ ¡Telemetría registrada y guardada en Supabase!\n\nScore: ${evalRes.score}%\nSueño: ${sleepHours}h | VFC: ${hrvVal}ms | FC: ${rhrVal}lpm\nBóveda: ${athleteKey}`);
       } catch (err) {
         alert('Error al sincronizar: ' + err.message);
       } finally {

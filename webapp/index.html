@@ -99,6 +99,10 @@
 
       <!-- Header Action Buttons -->
       <div class="flex items-center gap-2">
+        <button id="btn-vault-status" class="glass-card px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-semibold border border-white/10 flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer" title="Configurar PIN de Atleta">
+          <span id="vault-status-dot" class="w-2 h-2 rounded-full bg-amber-400"></span>
+          <span id="vault-status-label" class="text-amber-300 font-bold">Modo Demo</span>
+        </button>
         <button id="btn-header-sync" class="glass-card px-3 py-1.5 rounded-full text-xs font-semibold text-slate-300 hover:text-white border border-white/10 flex items-center gap-1.5 transition-all active:scale-95">
           <span>🔄</span> Sincronizar
         </button>
@@ -645,6 +649,13 @@
             class="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs shadow-lg shadow-cyan-500/20 transition-all">
             💾 Guardar PIN y Desbloquear
           </button>
+
+          <button 
+            type="button" 
+            id="btn-use-default-pin" 
+            class="w-full py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 font-bold text-xs transition-all flex items-center justify-center gap-1.5">
+            <span>✨</span> Usar PIN por defecto: atleta_privado
+          </button>
           
           <button 
             type="button" 
@@ -712,16 +723,17 @@
           </div>
           <p class="text-[10px] text-slate-400">Extrae sueño, HRV y FC reposo de Apple Health y los sube a Supabase.</p>
           <pre id="prompt-text-recovery" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create a new Apple Shortcut named "Recuperación Matutina".
-Step 1: Find the latest Health sample for "Sleep Analysis" (limit to 1 sample, sorted by newest end date) and store the duration in hours as a variable.
-Step 2: Find the latest Health sample for "Resting Heart Rate" (limit to 1 sample, sorted by newest) and store as a variable.
-Step 3: Find the latest Health sample for "Heart Rate Variability SDNN" (limit to 1 sample, sorted by newest) and store as a variable.
-Step 4: Create a Dictionary with:
-- "recorded_date": Current Date formatted as yyyy-MM-dd
-- "sleep_hours": the Sleep duration in hours
-- "resting_hr": the Resting Heart Rate value
-- "hrv_ms": the Heart Rate Variability value
+Step 1: Find latest Health sample for "Sleep Analysis" (limit to 1 sample, sorted by newest end date). Get its duration in hours, formatted as a pure decimal Number.
+Step 2: Find latest Health sample for "Resting Heart Rate" (limit to 1 sample, sorted by newest). Extract only the numeric value (as a pure Number, without units like bpm or lpm).
+Step 3: Find latest Health sample for "Heart Rate Variability SDNN" (limit to 1 sample, sorted by newest). Extract only the numeric value (as a pure Number, without units like ms).
+Step 4: Format Current Date using Custom Date Format "yyyy-MM-dd".
+Step 5: Create a Dictionary with:
+- "recorded_date": the formatted date string (yyyy-MM-dd)
+- "sleep_hours": the numeric sleep hours
+- "resting_hr": the numeric resting heart rate
+- "hrv_ms": the numeric heart rate variability
 - "athlete_id": "{PIN}"
-Step 5: Get Contents of URL using HTTP POST:
+Step 6: Get Contents of URL using HTTP POST:
 - URL: "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date"
 - Request Body: JSON with the Dictionary
 - Headers:
@@ -730,7 +742,7 @@ Step 5: Get Contents of URL using HTTP POST:
   * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
   * "Prefer": "resolution=merge-duplicates,return=representation"
   * "x-athlete-token": "{PIN}"
-Step 6: Show Notification with title "BioCoach - Recuperación Matutina" and body "Telemetría sincronizada con éxito en BioCoach Cloud."</pre>
+Step 7: Show Notification with title "BioCoach Cloud" and body containing the exact result from Get Contents of URL.</pre>
         </div>
 
         <!-- Prompt 2: Fin de Entrenamiento -->
@@ -746,7 +758,7 @@ Step 6: Show Notification with title "BioCoach - Recuperación Matutina" and bod
           <p class="text-[10px] text-slate-400">Lee calorías activas, duración y frecuencia cardíaca del último entreno.</p>
           <pre id="prompt-text-workout" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create a new Apple Shortcut named "Fin de Entrenamiento".
 Step 1: Find the latest workout session from HealthKit (limit to 1, sorted by newest end date).
-Step 2: Extract workout activity type, total duration in minutes, active calories burned, average heart rate, and maximum heart rate.
+Step 2: Extract workout activity type, total duration in minutes, active calories burned, average heart rate, and maximum heart rate as pure numbers.
 Step 3: Create a Dictionary with:
 - "workout_type": Activity type as text
 - "duration_minutes": Duration in minutes
@@ -763,7 +775,7 @@ Step 4: Make an HTTP POST request using Get Contents of URL:
   * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
   * "Prefer": "return=representation"
   * "x-athlete-token": "{PIN}"
-Step 5: Show Notification with title "BioCoach - Fin de Entrenamiento" and body "Sesión registrada y evaluada en BioCoach Cloud."</pre>
+Step 5: Show Notification with title "BioCoach Cloud" and body containing the exact result from Get Contents of URL.</pre>
         </div>
 
         <!-- Prompt 3: Check Cardíaco -->
@@ -778,8 +790,8 @@ Step 5: Show Notification with title "BioCoach - Fin de Entrenamiento" and body 
           </div>
           <p class="text-[10px] text-slate-400">Toma una instantánea de pulso y variabilidad cardíaca en tiempo real.</p>
           <pre id="prompt-text-hr" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create a new Apple Shortcut named "Check Cardíaco".
-Step 1: Find the latest Health sample for "Heart Rate" (limit 1, newest).
-Step 2: Find the latest Health sample for "Heart Rate Variability SDNN" (limit 1, newest).
+Step 1: Find the latest Health sample for "Heart Rate" (limit 1, newest). Extract pure number.
+Step 2: Find the latest Health sample for "Heart Rate Variability SDNN" (limit 1, newest). Extract pure number.
 Step 3: Create a Dictionary with:
 - "current_hr": Heart rate value
 - "current_hrv": Heart rate variability value
@@ -794,7 +806,7 @@ Step 4: Send an HTTP POST request using Get Contents of URL:
   * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
   * "Prefer": "return=representation"
   * "x-athlete-token": "{PIN}"
-Step 5: Show Notification with title "BioCoach - Check Cardíaco" and body "Pulso registrado correctamente."</pre>
+Step 5: Show Notification with title "BioCoach Cloud" and body containing the exact result from Get Contents of URL.</pre>
         </div>
 
         <!-- Prompt 4: Registro de Nutrición por Voz -->
@@ -823,7 +835,7 @@ Step 3: Make an HTTP POST request to:
   * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
   * "Prefer": "return=representation"
   * "x-athlete-token": "{PIN}"
-Step 4: Show Notification with title "BioCoach - Nutrición" and body "Comida enviada a BioCoach para análisis de macros."</pre>
+Step 4: Show Notification with title "BioCoach Cloud" and body containing the exact result from Get Contents of URL.</pre>
         </div>
 
       </div>
