@@ -255,6 +255,148 @@ class PhysiologyEngine:
             summary=f"Carga estimada: {strain}/21. Recuperación recomendada: ~{rec_hours} horas."
         )
 
+    def evaluate_daily_pillars(self, metrics: DailyMetrics, profile: BaselineProfile) -> Dict[str, Any]:
+        """
+        Evaluates the 3 core health pillars (HRV, Resting HR, Sleep) individually.
+        Returns categorized traffic lights, numerical scores, and identifies the primary bottleneck.
+        """
+        rec_result = self.calculate_recovery(metrics, profile)
+        base_rhr = profile.resting_hr or self.DEFAULT_RHR
+        base_hrv = profile.hrv_ms or self.DEFAULT_HRV
+        target_sleep = profile.target_sleep_hours or self.DEFAULT_TARGET_SLEEP
+
+        pillars = {}
+
+        # 1. HRV Pillar
+        if metrics.hrv_ms is not None and base_hrv > 0:
+            hrv_ratio = metrics.hrv_ms / base_hrv
+            hrv_delta_pct = (hrv_ratio - 1.0) * 100.0
+            if hrv_ratio >= 0.95:
+                hrv_status = "GREEN"
+                hrv_sev = "NONE"
+                hrv_score = min(100, int(round(hrv_ratio * 85)))
+            elif hrv_ratio >= 0.78:
+                hrv_status = "YELLOW"
+                hrv_sev = "MODERATE"
+                hrv_score = int(round(hrv_ratio * 75))
+            else:
+                hrv_status = "RED"
+                hrv_sev = "CRITICAL" if hrv_ratio < 0.65 else "HIGH"
+                hrv_score = max(10, int(round(hrv_ratio * 60)))
+
+            pillars["hrv"] = {
+                "pillar": "HRV",
+                "label": "Variabilidad Cardíaca (HRV)",
+                "value": f"{metrics.hrv_ms:.0f} ms",
+                "baseline": f"{base_hrv:.0f} ms",
+                "delta": f"{hrv_delta_pct:+.0f}%",
+                "status": hrv_status,
+                "severity": hrv_sev,
+                "score": hrv_score
+            }
+        else:
+            pillars["hrv"] = {"pillar": "HRV", "status": "YELLOW", "score": 50, "severity": "NONE", "value": "--", "delta": "N/D"}
+
+        # 2. Resting Heart Rate Pillar
+        if metrics.resting_hr is not None and base_rhr > 0:
+            rhr_diff = metrics.resting_hr - base_rhr
+            if rhr_diff <= 2.0:
+                rhr_status = "GREEN"
+                rhr_sev = "NONE"
+                rhr_score = min(100, int(round(85.0 - (rhr_diff * 4.0))))
+            elif rhr_diff <= 6.0:
+                rhr_status = "YELLOW"
+                rhr_sev = "MODERATE"
+                rhr_score = int(round(70.0 - ((rhr_diff - 2.0) * 4.0)))
+            else:
+                rhr_status = "RED"
+                rhr_sev = "HIGH"
+                rhr_score = max(15, int(round(50.0 - ((rhr_diff - 6.0) * 5.0))))
+
+            pillars["rhr"] = {
+                "pillar": "RHR",
+                "label": "Frecuencia Cardíaca en Reposo",
+                "value": f"{metrics.resting_hr:.0f} bpm",
+                "baseline": f"{base_rhr:.0f} bpm",
+                "delta": f"{rhr_diff:+.0f} bpm",
+                "status": rhr_status,
+                "severity": rhr_sev,
+                "score": rhr_score
+            }
+        else:
+            pillars["rhr"] = {"pillar": "RHR", "status": "YELLOW", "score": 50, "severity": "NONE", "value": "--", "delta": "N/D"}
+
+        # 3. Sleep Architecture Pillar
+        if metrics.sleep_hours is not None and target_sleep > 0:
+            sleep_ratio = metrics.sleep_hours / target_sleep
+            if sleep_ratio >= 0.88: # >= 7.0h on 8h target
+                sleep_status = "GREEN"
+                sleep_sev = "NONE"
+                sleep_score = min(100, int(round(sleep_ratio * 85)))
+            elif sleep_ratio >= 0.70: # 5.6h to 7.0h
+                sleep_status = "YELLOW"
+                sleep_sev = "MODERATE"
+                sleep_score = int(round(sleep_ratio * 75))
+            else:
+                sleep_status = "RED"
+                sleep_sev = "CRITICAL" if sleep_ratio < 0.55 else "HIGH"
+                sleep_score = max(10, int(round(sleep_ratio * 55)))
+
+            pillars["sleep"] = {
+                "pillar": "SLEEP",
+                "label": "Duración de Sueño",
+                "value": f"{metrics.sleep_hours:.1f} h",
+                "target": f"{target_sleep:.1f} h",
+                "delta": f"{(metrics.sleep_hours - target_sleep):+.1f} h",
+                "status": sleep_status,
+                "severity": sleep_sev,
+                "score": sleep_score
+            }
+        else:
+            pillars["sleep"] = {"pillar": "SLEEP", "status": "YELLOW", "score": 50, "severity": "NONE", "value": "--", "delta": "N/D"}
+
+        # Identify Worst Pillar / Primary Bottleneck
+        sorted_pillars = sorted(pillars.values(), key=lambda p: p["score"])
+        bottleneck = sorted_pillars[0]
+
+        if bottleneck["score"] < 70 and bottleneck["status"] in ["YELLOW", "RED"]:
+            worst_name = bottleneck["pillar"]
+            worst_sev = bottleneck["severity"]
+
+            if worst_name == "HRV":
+                title = "Variabilidad Cardíaca deprimida"
+                detail = f"Tu variabilidad cardíaca (HRV) cayó a {bottleneck['value']} ({bottleneck['delta']} vs tu media). El sistema nervioso autónomo estuvo bajo estrés fisiológico o fatiga residual."
+            elif worst_name == "RHR":
+                title = "Pulso en reposo elevado"
+                detail = f"Tu frecuencia en reposo subió a {bottleneck['value']} ({bottleneck['delta']} sobre tu base). Puede reflejar deshidratación, digestión tardía o inflamación."
+            else:
+                title = "Déficit severo de sueño"
+                detail = f"Tu tiempo de sueño fue de sólo {bottleneck['value']} ({bottleneck['delta']} respecto a tu meta). No alcanzaste el tiempo suficiente para regeneración física y hormonal."
+
+            worst_aspect = {
+                "pillar": worst_name,
+                "title": title,
+                "severity": worst_sev,
+                "badge": "🔴 Crítico" if worst_sev in ["HIGH", "CRITICAL"] else "🟡 Atención",
+                "detail": detail
+            }
+        else:
+            worst_aspect = {
+                "pillar": "NONE",
+                "title": "Todos los pilares en rango óptimo",
+                "severity": "NONE",
+                "badge": "🟢 Excelente",
+                "detail": "Tu sistema nervioso, descanso y ritmo cardíaco muestran balance y recuperación equilibrada."
+            }
+
+        return {
+            "overall_score": rec_result.score,
+            "overall_traffic_light": rec_result.traffic_light,
+            "ans_state": rec_result.ans_state,
+            "pillars": pillars,
+            "worst_aspect": worst_aspect
+        }
+
     def _clamp(self, val: float, min_val: float, max_val: float) -> float:
         """Utility to clamp numeric values within physiological bounds."""
         return max(min_val, min(max_val, val))

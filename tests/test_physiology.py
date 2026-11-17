@@ -194,5 +194,51 @@ class TestPhysiologyEngine(unittest.TestCase):
         self.assertLessEqual(analysis.strain_score, 7.0)
         self.assertLessEqual(analysis.recommended_recovery_hours, 12)
 
+    # --------------------------------------------------------------------------
+    # 9. DAILY PILLARS BREAKDOWN AND WORST-METRIC IDENTIFICATION
+    # --------------------------------------------------------------------------
+    def test_pillars_bad_day_hrv_worst(self):
+        """Bad day overall (RED) where HRV is the most severely impaired pillar."""
+        metrics = DailyMetrics(
+            sleep_hours=5.2,     # Insufficient
+            resting_hr=64.0,     # Elevated (+10 bpm from baseline 54)
+            hrv_ms=22.0          # Critical red (-63% drop from 60ms baseline)
+        )
+        pillars = self.engine.evaluate_daily_pillars(metrics, self.default_profile)
+
+        self.assertEqual(pillars["overall_traffic_light"], "RED")
+        self.assertEqual(pillars["pillars"]["hrv"]["status"], "RED")
+        self.assertEqual(pillars["worst_aspect"]["pillar"], "HRV")
+        self.assertIn(pillars["worst_aspect"]["severity"], ["HIGH", "CRITICAL"])
+        self.assertIn("variabilidad", pillars["worst_aspect"]["detail"].lower())
+
+    def test_pillars_bad_day_sleep_worst(self):
+        """Day where Sleep is the worst metric pulling the score down."""
+        metrics = DailyMetrics(
+            sleep_hours=3.8,     # Red (severe deprivation)
+            resting_hr=55.0,     # Green (baseline 54)
+            hrv_ms=58.0          # Green (baseline 60)
+        )
+        pillars = self.engine.evaluate_daily_pillars(metrics, self.default_profile)
+
+        self.assertEqual(pillars["pillars"]["sleep"]["status"], "RED")
+        self.assertEqual(pillars["worst_aspect"]["pillar"], "SLEEP")
+        self.assertIn("sueño", pillars["worst_aspect"]["detail"].lower())
+
+    def test_pillars_optimal_day_all_green(self):
+        """Optimal recovery day where all pillars perform within green thresholds."""
+        metrics = DailyMetrics(
+            sleep_hours=8.2,
+            resting_hr=51.0,
+            hrv_ms=68.0
+        )
+        pillars = self.engine.evaluate_daily_pillars(metrics, self.default_profile)
+
+        self.assertEqual(pillars["overall_traffic_light"], "GREEN")
+        self.assertEqual(pillars["pillars"]["hrv"]["status"], "GREEN")
+        self.assertEqual(pillars["pillars"]["rhr"]["status"], "GREEN")
+        self.assertEqual(pillars["pillars"]["sleep"]["status"], "GREEN")
+        self.assertEqual(pillars["worst_aspect"]["severity"], "NONE")
+
 if __name__ == "__main__":
     unittest.main()
