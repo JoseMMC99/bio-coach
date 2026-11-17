@@ -934,95 +934,67 @@
           </p>
         </div>
 
-        <!-- Prompt 1 (PRINCIPAL): Recuperación Matutina (Diario - 100% Calibrado con tu Apple Watch) -->
+        <!-- Prompt 1A (PRINCIPAL MAÑANA): BioCoach Vitales (Compacto para Apple Intelligence) -->
         <div class="glass-card p-4 rounded-2xl border border-cyan-500/40 bg-cyan-500/5 space-y-2.5">
           <div class="flex items-center justify-between">
             <h3 class="text-xs font-black text-cyan-400 flex items-center gap-2">
-              <span>☀️</span> 01. Recuperación Matutina (Diario al Despertar)
+              <span>☀️</span> 01A. BioCoach Vitales (Al Despertar)
             </h3>
             <button type="button" class="btn-copy-prompt text-[10px] px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black shadow-md shadow-cyan-500/20 transition-all active:scale-95" data-target="prompt-text-recovery">
               📋 Copiar Prompt
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">Automatización diaria al despertar. Usa <code class="text-cyan-300">last 16 hours</code> en sueño y respiración (funciona aunque te duermas a las 8–11 PM) y <code class="text-cyan-300">End Date is Today</code> en temperatura, actividad y alertas clínicas para NO repetir alertas pasadas.</p>
-          <pre id="prompt-text-recovery" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "Recuperación Matutina":
-CRITICAL RULES:
-1. Run this shortcut via Personal Automation when waking up (Sleep -> Waking Up / Sleep Focus turns off).
-2. For SLEEP & RESPIRATORY RATE (multi-segment overnight metrics), filter strictly by "End Date is in the last 16 hours" so sleeping early (8 PM, 9 PM, 10 PM, 11 PM) NEVER loses pre-midnight sleep and NEVER overlaps yesterday morning.
-3. For ALL OTHER METRICS (Wrist Temperature, Breathing Disturbances, Heart, SpO2, Activity, Mobility & Clinical Alerts), filter strictly by "End Date is Today" so past alerts (Hypertension, Sleep Apnea, Audio) are NEVER pulled twice.
-4. Only add a key to the Dictionary if the result has a valid value (> 0).
-
-Step 1: Format Current Date as "yyyy-MM-dd" (store as DateString).
-Step 2: Create main Dictionary (Payload) with initial keys:
-  * "recorded_date": DateString
-  * "athlete_id": "{PIN}"
-Step 3 (Sleep Architecture - End Date is in the last 16 hours; convert Duration seconds ÷ 3600 to Hours, round to 2 decimals; only add if > 0):
-  * "Sleep Analysis" where Value is NOT "Awake" AND Value is NOT "In Bed" -> key "sleep_hours"
-  * "Sleep Analysis" where Value is "Asleep Deep" -> key "deep_sleep_hours"
-  * "Sleep Analysis" where Value is "Asleep REM" -> key "rem_sleep_hours"
-  * "Sleep Analysis" where Value is "Asleep Core" -> key "core_sleep_hours"
-  * "Sleep Analysis" where Value is "Awake" -> key "awake_sleep_hours"
-Step 4 (Cardiovascular Vitals - End Date is Today; only add if it has any value):
-  * "Resting Heart Rate" -> Statistics: Average -> key "resting_hr"
-  * "Heart Rate Variability SDNN" -> Statistics: Average -> key "hrv_ms"
-  * "Heart Rate" -> Average -> key "avg_hr"; Minimum -> key "min_hr"; Maximum -> key "max_hr"
-  * "Walking Heart Rate Average" -> Statistics: Average -> key "walking_hr_avg"
-  * "VO2 Max" (End Date is Today ONLY) -> Average -> key "vo2_max"
-Step 5 (Respiratory, Oxygen & Wrist Temp - leave Unit blank/default on Health actions, BioCoach auto-converts °F/°C and %; only add if it has any value):
-  * "Respiratory Rate" (End Date is in the last 16 hours) -> Statistics: Average -> key "respiratory_rate"
-  * "Blood Oxygen" (End Date is Today) -> Statistics: Average -> key "spo2_pct"
-  * "Breathing Disturbances" (End Date is Today) -> Statistics: Average -> key "breathing_disturbances"
-  * "Apple Sleeping Wrist Temperature" (End Date is Today) -> Statistics: Average -> key "wrist_temp_deviation"
-Step 6 (Activity, Energy & Environment - End Date is Today; round INT fields to whole integers; only add if > 0):
-  * "Steps" -> Sum, Round to Ones Place (integer) -> key "steps"
-  * "Active Energy" -> Sum (kcal), Round to Ones Place (integer) -> key "active_calories"
-  * "Resting Energy" -> Sum (kcal), Round to Ones Place (integer) -> key "basal_calories"
-  * "Apple Exercise Time" -> Sum (min), Round to Ones Place (integer) -> key "exercise_minutes"
-  * "Stand Hours" (Apple Stand Hour where Value is Stood) -> Count (integer) -> key "stand_hours"
-  * "Walking + Running Distance" -> Sum (km), round to 2 decimals -> key "distance_km"
-  * "Flights Climbed" -> Sum, Round to Ones Place (integer) -> key "flights_climbed"
-  * "Time in Daylight" -> Sum (min), Round to Ones Place (integer) -> key "daylight_minutes"
-  * "Environmental Sound Levels" -> Statistics: Average (dB) -> key "audio_exposure_db"
-  * "Weight" (Body Mass, End Date is Today ONLY) -> Value (kg) -> key "body_mass_kg"
-Step 7 (Mobility & Clinical Alerts Dictionary -> nested key "extra_metrics" inside Payload; EVERY query MUST use End Date is Today so past alerts are NEVER pulled twice):
-  Create an empty Dictionary (ExtraDict) and add ONLY keys with values > 0:
-  * "Walking Speed" -> Average (km/h) -> "walking_speed_kmh"
-  * "Walking Step Length" -> Average (cm) -> "walking_step_length_cm"
-  * "Walking Double Support Percentage" -> Average -> "walking_double_support_pct"
-  * "Walking Asymmetry Percentage" -> Average -> "walking_asymmetry_pct"
-  * "Walking Steadiness" -> Average -> "walking_steadiness_pct"
-  * "Stair Speed: Up" -> Average (m/s) -> "stair_ascent_speed"
-  * "Stair Speed: Down" -> Average (m/s) -> "stair_descent_speed"
-  * "Cycling Distance" -> Sum (km) -> "cycling_km"
-  * "Physical Effort" -> Average -> "physical_effort"
-  * "Six-Minute Walk" -> Average (m) -> "six_min_walk_m"
-  * "Hypertension Notifications" (End Date is Today ONLY) -> Count -> if > 0 set "hypertension_events"
-  * "Sleep Apnea Notifications" (End Date is Today ONLY) -> Count -> if > 0 set "sleep_apnea_events"
-  * "Environmental Audio Exposure Events" (End Date is Today ONLY) -> Count -> if > 0 set "audio_exposure_events"
-  Set Dictionary Value on Payload for key "extra_metrics" to ExtraDict.
-Step 8: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date":
-- Request Body: JSON with Payload Dictionary
-- Headers:
+          <p class="text-[10px] text-slate-400">Automatización al despertar. Sube sueño, fases Deep/REM, FC reposo, VFC, respiración, SpO2 y temperatura (compacto para que Apple Intelligence lo genere sin error).</p>
+          <pre id="prompt-text-recovery" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "BioCoach Vitales":
+Step 1: Format Current Date as "yyyy-MM-dd" (DateString).
+Step 2: Create a Dictionary with "recorded_date": DateString and "athlete_id": "{PIN}".
+Step 3: Find Health samples for "Sleep Analysis" where End Date is in the last 16 hours and Value is NOT "Awake" and Value is NOT "In Bed". Sum Duration in seconds, divide by 3600, round to 2 decimals. If > 0, add to Dictionary as "sleep_hours".
+Step 4: Find Health samples for "Sleep Analysis" where End Date is in the last 16 hours and Value is "Asleep Deep". Sum Duration divided by 3600, round to 2 decimals. If > 0, add to Dictionary as "deep_sleep_hours".
+Step 5: Find Health samples for "Sleep Analysis" where End Date is in the last 16 hours and Value is "Asleep REM". Sum Duration divided by 3600, round to 2 decimals. If > 0, add to Dictionary as "rem_sleep_hours".
+Step 6: Find Health samples for "Resting Heart Rate" where End Date is Today. Get Average as Number. If has value, add as "resting_hr".
+Step 7: Find Health samples for "Heart Rate Variability" where End Date is Today. Get Average as Number. If has value, add as "hrv_ms".
+Step 8: Find Health samples for "Respiratory Rate" where End Date is in the last 16 hours. Get Average as Number. If has value, add as "respiratory_rate".
+Step 9: Find Health samples for "Blood Oxygen" where End Date is Today. Get Average as Number. If has value, add as "spo2_pct".
+Step 10: Find Health samples for "Apple Sleeping Wrist Temperature" where End Date is Today (leave Unit default). Get Average as Number. If has value, add as "wrist_temp_deviation".
+Step 11: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date" with Request Body JSON from the Dictionary and Headers:
   * "Content-Type": "application/json"
   * "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
   * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
   * "Prefer": "resolution=merge-duplicates,return=representation"
   * "x-athlete-token": "{PIN}"
-Step 9: Show Notification with title "BioCoach Matutino" and body containing result from URL request.</pre>
+Step 12: Show Notification with title "BioCoach Vitales" and body from URL result.</pre>
         </div>
 
-        <!-- Prompt 00 (Opcional): Recuperación Manual de Ayer (solo si un día no corrió la automatización) -->
-        <div class="glass-card p-4 rounded-2xl border border-white/10 space-y-2.5">
+        <!-- Prompt 1B (NOCHE): BioCoach Actividad & Marcha (Se fusiona en la misma fila de hoy) -->
+        <div class="glass-card p-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 space-y-2.5">
           <div class="flex items-center justify-between">
-            <h3 class="text-xs font-black text-slate-300 flex items-center gap-2">
-              <span>⏪</span> 00. Sincronizar Ayer (Respaldo 1 día)
+            <h3 class="text-xs font-black text-emerald-400 flex items-center gap-2">
+              <span>🏃</span> 01B. BioCoach Actividad (Al Final del Día)
             </h3>
-            <button type="button" class="btn-copy-prompt text-[10px] px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-black transition-all active:scale-95" data-target="prompt-text-baseline">
+            <button type="button" class="btn-copy-prompt text-[10px] px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black shadow-md shadow-emerald-500/20 transition-all active:scale-95" data-target="prompt-text-baseline">
               📋 Copiar Prompt
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">Opcional: úsalo solo si un día olvidaste correr el atajo matutino y quieres subir los datos de ayer.</p>
-          <pre id="prompt-text-baseline" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Duplicate the "Recuperación Matutina" shortcut, name it "Sincronizar Ayer", and change every date filter from "Today" to "Yesterday" (Adjust Date: Subtract 1 day from Current Date -> format as "yyyy-MM-dd" for recorded_date, and filter End Date is Yesterday for all Health queries). Keep athlete_id and x-athlete-token as "{PIN}".</pre>
+          <p class="text-[10px] text-slate-400">Automatización a las 9:30 PM. Sube pasos, calorías, ejercicio, distancia, pisos, luz solar, ruido y FC caminando del día completo (se fusiona con tus vitales de la mañana sin borrarlos).</p>
+          <pre id="prompt-text-baseline" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "BioCoach Actividad":
+Step 1: Format Current Date as "yyyy-MM-dd" (DateString).
+Step 2: Create a Dictionary with "recorded_date": DateString and "athlete_id": "{PIN}".
+Step 3: Find Health samples for "Steps" where End Date is Today. Sum and round to whole integer. If > 0, add as "steps".
+Step 4: Find Health samples for "Active Energy" where End Date is Today. Sum and round to whole integer. If > 0, add as "active_calories".
+Step 5: Find Health samples for "Resting Energy" where End Date is Today. Sum and round to whole integer. If > 0, add as "basal_calories".
+Step 6: Find Health samples for "Exercise Minutes" where End Date is Today. Sum and round to whole integer. If > 0, add as "exercise_minutes".
+Step 7: Find Health samples for "Walking + Running Distance" where End Date is Today. Sum in km, round to 2 decimals. If > 0, add as "distance_km".
+Step 8: Find Health samples for "Flights Climbed" where End Date is Today. Sum and round to whole integer. If > 0, add as "flights_climbed".
+Step 9: Find Health samples for "Time in Daylight" where End Date is Today. Sum in minutes, round to whole integer. If > 0, add as "daylight_minutes".
+Step 10: Find Health samples for "Walking Heart Rate Average" where End Date is Today. Get Average as Number. If has value, add as "walking_hr_avg".
+Step 11: Find Health samples for "Environmental Sound Levels" where End Date is Today. Get Average as Number. If has value, add as "audio_exposure_db".
+Step 12: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date" with Request Body JSON from the Dictionary and Headers:
+  * "Content-Type": "application/json"
+  * "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
+  * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
+  * "Prefer": "resolution=merge-duplicates,return=representation"
+  * "x-athlete-token": "{PIN}"
+Step 13: Show Notification with title "BioCoach Actividad" and body from URL result.</pre>
         </div>
 
         <!-- Prompt 2: Fin de Entrenamiento -->
