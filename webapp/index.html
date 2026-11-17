@@ -745,7 +745,7 @@ Step 2: Repeat with Each number in the List:
   * Find Health samples for "Resting Heart Rate" on that specific date. Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "resting_hr".
   * Find Health samples for "Heart Rate Variability SDNN" on that specific date. Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "hrv_ms".
   * Find Health samples for "Respiratory Rate" on that specific date. Calculate Statistics: Average (NEVER Sum) in breaths/min as Number. If it has any value, Set Dictionary Value for key "respiratory_rate".
-  * Find Health samples for "Apple Sleeping Wrist Temperature" on that specific date with Unit explicitly set to "degC" (Celsius, NEVER Fahrenheit). Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "wrist_temp_deviation".
+  * Find Health samples for "Apple Sleeping Wrist Temperature" on that specific date (do NOT set a Unit filter on the Health action). Calculate Statistics: Average (NEVER Sum) as Number. If it has any value: if greater than 50, convert from Fahrenheit to Celsius using Calculate ((value - 32) ÷ 1.8) and round to 2 decimals, then Set Dictionary Value for key "wrist_temp_deviation".
   * Find Health samples for "Time in Daylight" on that specific date. Get total duration in Minutes and Round to Ones Place (whole integer, no decimals). If it has any value, Set Dictionary Value for key "daylight_minutes".
   * IMPORTANT - Inside the Repeat loop (before End Repeat): Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date":
     - Request Body: JSON / File with the Dictionary of this day
@@ -781,7 +781,7 @@ Step 5: Find Health samples for "Sleep Analysis" where End Date is in the last 2
 Step 6: Find Health samples for "Resting Heart Rate" in the last 24 hours. Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "resting_hr".
 Step 7: Find Health samples for "Heart Rate Variability SDNN" in the last 24 hours. Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "hrv_ms".
 Step 8: Find Health samples for "Respiratory Rate" in the last 24 hours. Calculate Statistics: Average (NEVER Sum) in breaths/min as Number. If it has any value, Set Dictionary Value for key "respiratory_rate".
-Step 9: Find Health samples for "Apple Sleeping Wrist Temperature" in the last 24 hours with Unit explicitly set to "degC" (Celsius, NEVER Fahrenheit). Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "wrist_temp_deviation".
+Step 9: Find Health samples for "Apple Sleeping Wrist Temperature" in the last 24 hours (do NOT set a Unit filter on the Health action). Calculate Statistics: Average (NEVER Sum) as Number. If it has any value: if greater than 50, convert from Fahrenheit to Celsius using Calculate ((value - 32) ÷ 1.8) and round to 2 decimals, then Set Dictionary Value for key "wrist_temp_deviation".
 Step 10: Find Health samples for "Time in Daylight" in the last 24 hours. Get total duration in Minutes and Round to Ones Place (whole integer). If it has any value, Set Dictionary Value for key "daylight_minutes".
 Step 11: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date":
 - Request Body: JSON / File with the Dictionary
