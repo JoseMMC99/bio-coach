@@ -98,6 +98,10 @@ class BioCoachAPIHandler:
                 result = self.service.calculate_nutrition_plan(body)
                 return 200, result
 
+            elif clean_path in ["/api/v1/seed-demo", "/seed-demo"]:
+                result = self.service.seed_demo_data()
+                return 200, result
+
             else:
                 return 404, {"error": f"Ruta '{clean_path}' no encontrada."}
 

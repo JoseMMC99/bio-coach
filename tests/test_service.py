@@ -135,5 +135,19 @@ class TestBioCoachService(unittest.TestCase):
         self.assertEqual(res["target_calories"], res["tdee"] - 400)
         self.assertGreater(res["macros"]["protein_g"], 130)
 
+    @patch("backend.service.BioCoachService._save_workout_record")
+    @patch("backend.service.BioCoachService._save_recovery_record")
+    def test_seed_demo_data_inserts_records(self, mock_save_rec, mock_save_wk):
+        """Seeding demo data populates 7 days of realistic biometric history and workouts."""
+        mock_save_rec.return_value = {"id": 1}
+        mock_save_wk.return_value = {"id": 1}
+
+        res = self.service.seed_demo_data()
+        self.assertEqual(res["status"], "success")
+        self.assertEqual(res["recovery_records_created"], 7)
+        self.assertEqual(res["workout_records_created"], 4)
+        self.assertEqual(mock_save_rec.call_count, 7)
+        self.assertEqual(mock_save_wk.call_count, 4)
+
 if __name__ == "__main__":
     unittest.main()

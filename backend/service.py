@@ -363,6 +363,69 @@ Responde de manera empática, científica y accionable. Relaciona tus consejos d
             "summary": plan.summary
         }
 
+    def seed_demo_data(self) -> Dict[str, Any]:
+        """
+        Seeds 7 days of realistic biometric telemetry and 4 recent workouts into Supabase.
+        Useful for immediately evaluating the dashboard, 3-pillar weekly calendar, and traffic lights.
+        """
+        from datetime import timedelta
+        today = date.today()
+
+        # Realistic 7-day progression showcasing green, yellow, and red physiological states
+        demo_days = [
+            {"offset": 0, "sleep": 7.8, "deep": 1.6, "rem": 1.9, "rhr": 52.0, "hrv": 64.0, "score": 92, "tl": "GREEN", "verdict": "🟢 Recuperación 92%. Sistema nervioso en balance óptimo. Gran día para entrenar fuerza."},
+            {"offset": 1, "sleep": 5.2, "deep": 0.8, "rem": 1.0, "rhr": 64.0, "hrv": 24.0, "score": 42, "tl": "RED", "verdict": "🔴 Recuperación 42%. Variabilidad cardíaca muy deprimida y sueño insuficiente. Prioriza descanso."},
+            {"offset": 2, "sleep": 6.8, "deep": 1.2, "rem": 1.4, "rhr": 56.0, "hrv": 52.0, "score": 72, "tl": "YELLOW", "verdict": "🟡 Recuperación 72%. Nivel moderado. Asimila carga aeróbica ligera."},
+            {"offset": 3, "sleep": 8.4, "deep": 2.0, "rem": 2.1, "rhr": 50.0, "hrv": 68.0, "score": 95, "tl": "GREEN", "verdict": "🟢 Recuperación 95%. Sueño profundo y REM excepcionales. Capacidad de esfuerzo máxima."},
+            {"offset": 4, "sleep": 7.5, "deep": 1.4, "rem": 1.7, "rhr": 53.0, "hrv": 60.0, "score": 86, "tl": "GREEN", "verdict": "🟢 Recuperación 86%. Ritmo circadiano estable."},
+            {"offset": 5, "sleep": 6.0, "deep": 1.0, "rem": 1.1, "rhr": 58.0, "hrv": 46.0, "score": 64, "tl": "YELLOW", "verdict": "🟡 Recuperación 64%. Ligera taquicardia nocturna. Hidrata bien."},
+            {"offset": 6, "sleep": 7.2, "deep": 1.3, "rem": 1.5, "rhr": 54.0, "hrv": 58.0, "score": 82, "tl": "GREEN", "verdict": "🟢 Recuperación 82%. Parámetros estables dentro de tu media basal."}
+        ]
+
+        rec_count = 0
+        for d in demo_days:
+            rec_date = (today - timedelta(days=d["offset"])).isoformat()
+            payload = {
+                "recorded_date": rec_date,
+                "sleep_hours": d["sleep"],
+                "deep_sleep_hours": d["deep"],
+                "rem_sleep_hours": d["rem"],
+                "resting_hr": d["rhr"],
+                "hrv_ms": d["hrv"],
+                "recovery_score": d["score"],
+                "gemini_verdict": d["verdict"]
+            }
+            self._save_recovery_record(payload)
+            rec_count += 1
+
+        demo_workouts = [
+            {"type": "Fuerza / Hipertrofia", "duration": 60, "kcal": 420, "avg_hr": 138, "max_hr": 165, "rec_hr": 28, "feedback": "🏋️ Carga de 14.5/21. Estimula síntesis proteica."},
+            {"type": "Running Intervalos", "duration": 42, "kcal": 510, "avg_hr": 158, "max_hr": 178, "rec_hr": 24, "feedback": "🔥 Carga de 16.2/21. Zona 4 predominante."},
+            {"type": "Ciclismo / Fondo", "duration": 75, "kcal": 580, "avg_hr": 132, "max_hr": 152, "rec_hr": 30, "feedback": "🚴 Carga de 13.0/21. Gran resistencia aeróbica."},
+            {"type": "Caminata de Recuperación", "duration": 35, "kcal": 140, "avg_hr": 98, "max_hr": 112, "rec_hr": 35, "feedback": "🚶 Carga de 4.5/21. Descanso activo óptimo."}
+        ]
+
+        wk_count = 0
+        for w in demo_workouts:
+            wk_payload = {
+                "workout_type": w["type"],
+                "duration_minutes": w["duration"],
+                "active_calories": w["kcal"],
+                "avg_hr": w["avg_hr"],
+                "max_hr": w["max_hr"],
+                "recovery_hr_1min": w["rec_hr"],
+                "gemini_feedback": w["feedback"]
+            }
+            self._save_workout_record(wk_payload)
+            wk_count += 1
+
+        return {
+            "status": "success",
+            "message": "Datos de prueba (7 días de telemetría y 4 entrenamientos) cargados con éxito.",
+            "recovery_records_created": rec_count,
+            "workout_records_created": wk_count
+        }
+
     # --------------------------------------------------------------------------
     # AUXILIARY METHODS AND POSTGREST ACCESS
     # --------------------------------------------------------------------------

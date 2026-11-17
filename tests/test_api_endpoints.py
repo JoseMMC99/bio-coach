@@ -108,6 +108,17 @@ class TestBioCoachAPIHandler(unittest.TestCase):
         self.assertEqual(body["status"], "success")
         self.assertEqual(body["target_calories"], 2150)
 
+    def test_seed_demo_endpoint_success(self):
+        """POST /api/v1/seed-demo triggers demo data population."""
+        self.mock_service.seed_demo_data.return_value = {
+            "status": "success",
+            "message": "Datos de prueba cargados.",
+            "recovery_records_created": 7
+        }
+        status_code, body = self.api.handle_request("POST", "/api/v1/seed-demo", {})
+        self.assertEqual(status_code, 200)
+        self.assertEqual(body["status"], "success")
+
     def test_route_not_found_returns_404(self):
         """Unknown route returns 404 Not Found."""
         status_code, body = self.api.handle_request("POST", "/api/v1/non_existent", {})

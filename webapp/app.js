@@ -515,6 +515,7 @@ function initManualSync() {
   const btnCloseModal = document.getElementById('btn-close-sync-modal');
   const btnCancelSync = document.getElementById('btn-cancel-sync');
   const btnRunShortcut = document.getElementById('btn-run-shortcut-ios');
+  const btnLoadDemo = document.getElementById('btn-load-demo');
   const syncForm = document.getElementById('sync-form');
   const submitBtn = document.getElementById('btn-submit-sync');
 
@@ -525,6 +526,28 @@ function initManualSync() {
   if (btnHeaderSync) btnHeaderSync.addEventListener('click', openModal);
   if (btnCloseModal) btnCloseModal.addEventListener('click', closeModal);
   if (btnCancelSync) btnCancelSync.addEventListener('click', closeModal);
+
+  // Trigger 7-day demo data population
+  if (btnLoadDemo) {
+    btnLoadDemo.addEventListener('click', async () => {
+      btnLoadDemo.textContent = 'Cargando datos...';
+      btnLoadDemo.disabled = true;
+      try {
+        const res = await fetch('/api/v1/seed-demo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        if (!res.ok) throw new Error('Error al cargar datos de prueba.');
+        await initDashboard();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      } finally {
+        btnLoadDemo.textContent = '🧪 Cargar 7 Días de Prueba';
+        btnLoadDemo.disabled = false;
+      }
+    });
+  }
 
   if (btnRunShortcut) {
     btnRunShortcut.addEventListener('click', () => {
