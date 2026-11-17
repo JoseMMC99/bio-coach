@@ -28,6 +28,7 @@ window.currentNutritionState = {
 document.addEventListener('DOMContentLoaded', () => {
   initServiceWorker();
   initNavigation();
+  initDashboardSubTabs();
   initDiscreetVaultAccess();
   initNutritionTabs();
   initDashboard();
@@ -98,6 +99,50 @@ function initNavigation() {
 
   if (mobChat) mobChat.addEventListener('click', () => switchView('chat'));
   if (deskChat) deskChat.addEventListener('click', () => switchView('chat'));
+}
+
+// 2b. Dashboard Sub-Tabs (Vitales & Sueño | Ejercicio & Marcha | Alertas Clínicas)
+function initDashboardSubTabs() {
+  const btnVitals = document.getElementById('dash-subtab-vitals');
+  const btnExercise = document.getElementById('dash-subtab-exercise');
+  const btnAlerts = document.getElementById('dash-subtab-alerts');
+  const btnJumpAlerts = document.getElementById('btn-jump-to-alerts');
+
+  const panelVitals = document.getElementById('dash-panel-vitals');
+  const panelExercise = document.getElementById('dash-panel-exercise');
+  const panelAlerts = document.getElementById('dash-panel-alerts');
+  const strip = document.getElementById('clinical-alerts-strip');
+
+  if (!btnVitals || !btnExercise || !btnAlerts) return;
+
+  const baseInactive = 'flex-1 py-2 px-2 rounded-xl text-[11px] sm:text-xs font-extrabold text-slate-400 hover:text-white transition-all';
+  const baseInactiveAlerts = `${baseInactive} flex items-center justify-center gap-1.5`;
+
+  function switchSubTab(tab) {
+    [panelVitals, panelExercise, panelAlerts].forEach(p => p && p.classList.add('hidden'));
+    btnVitals.className = baseInactive;
+    btnExercise.className = baseInactive;
+    btnAlerts.className = baseInactiveAlerts;
+
+    if (tab === 'vitals') {
+      if (panelVitals) panelVitals.classList.remove('hidden');
+      btnVitals.className = 'flex-1 py-2 px-2 rounded-xl text-[11px] sm:text-xs font-extrabold text-cyan-400 bg-cyan-500/15 transition-all';
+      if (strip && window.currentDashboardData?.clinical_alerts?.length > 0) strip.classList.remove('hidden');
+    } else if (tab === 'exercise') {
+      if (panelExercise) panelExercise.classList.remove('hidden');
+      btnExercise.className = 'flex-1 py-2 px-2 rounded-xl text-[11px] sm:text-xs font-extrabold text-emerald-400 bg-emerald-500/15 transition-all';
+      if (strip) strip.classList.add('hidden');
+    } else if (tab === 'alerts') {
+      if (panelAlerts) panelAlerts.classList.remove('hidden');
+      btnAlerts.className = 'flex-1 py-2 px-2 rounded-xl text-[11px] sm:text-xs font-extrabold text-rose-400 bg-rose-500/15 transition-all flex items-center justify-center gap-1.5';
+      if (strip) strip.classList.add('hidden');
+    }
+  }
+
+  btnVitals.addEventListener('click', () => switchSubTab('vitals'));
+  btnExercise.addEventListener('click', () => switchSubTab('exercise'));
+  btnAlerts.addEventListener('click', () => switchSubTab('alerts'));
+  if (btnJumpAlerts) btnJumpAlerts.addEventListener('click', () => switchSubTab('alerts'));
 }
 
 // 3. Nutrition Sub-Tabs (Balance & Calorías vs Metas & Configuración)
@@ -610,6 +655,9 @@ function processBiometricHistory(history, workouts) {
   const baseActCal = validActCal.length > 0 ? Math.round(validActCal.reduce((a, b) => a + b, 0) / validActCal.length) : null;
   const latestVo2 = history.find(r => r.vo2_max != null)?.vo2_max ?? null;
   const latestWeight = history.find(r => r.body_mass_kg != null)?.body_mass_kg ?? null;
+  const latestSteadiness = history.find(r => r.extra_metrics?.walking_steadiness_pct != null)?.extra_metrics?.walking_steadiness_pct ?? null;
+  const latestSixMin = history.find(r => r.extra_metrics?.six_min_walk_m != null)?.extra_metrics?.six_min_walk_m ?? null;
+
   const recentClinicalEvents = history
     .filter(r => r.extra_metrics && (r.extra_metrics.hypertension_events || r.extra_metrics.sleep_apnea_events))
     .map(r => {
@@ -619,9 +667,91 @@ function processBiometricHistory(history, workouts) {
       return ev.join(', ');
     });
 
+  // Build deduplicated Important Clinical Alerts feed across last 30 days with exact dates
+  const clinicalAlerts = [];
+  history.forEach((r) => {
+    const ex = r.extra_metrics || {};
+    const dt = r.recorded_date;
+    const tC = toCelsius(r.wrist_temp_deviation);
+    const sp2 = toPct(r.spo2_pct);
+    const bd = r.breathing_disturbances != null ? Number(r.breathing_disturbances) : null;
+
+    if (ex.hypertension_events) {
+      clinicalAlerts.push({
+        date: dt,
+        severity: 'CRITICAL',
+        icon: '🫀',
+        title: 'Posible Hipertensión detectada',
+        badge: 'Crítico',
+        detail: `Apple Watch registró ${ex.hypertension_events} alerta(s) de posible hipertensión este día. Revisa tu presión arterial y compártelo con tu médico.`
+      });
+    }
+    if (ex.sleep_apnea_events) {
+      clinicalAlerts.push({
+        date: dt,
+        severity: 'CRITICAL',
+        icon: '🫁',
+        title: 'Posible Apnea del Sueño detectada',
+        badge: 'Crítico',
+        detail: `Apple Watch emitió alerta de posible apnea del sueño${bd != null ? ` (${bd.toFixed(1)} alteraciones/h)` : ''}. Vigila calidad de descanso y oxigenación nocturna.`
+      });
+    }
+    if (tC != null && baseTemp != null && tC >= baseTemp + 0.65) {
+      clinicalAlerts.push({
+        date: dt,
+        severity: 'HIGH',
+        icon: '🌡️',
+        title: `Pico de Temperatura Nocturna (${tC.toFixed(2)} °C)`,
+        badge: `+${(tC - baseTemp).toFixed(2)} °C`,
+        detail: `Temperatura de muñeca por encima de tu media de 30 días (${baseTemp.toFixed(2)} °C). Señal típica de proceso viral, inflamación o estrés inmune.`
+      });
+    }
+    if (bd != null && bd >= 18.0 && !ex.sleep_apnea_events) {
+      clinicalAlerts.push({
+        date: dt,
+        severity: 'HIGH',
+        icon: '😮‍💨',
+        title: `Alteraciones Respiratorias Elevadas (${bd.toFixed(1)}/h)`,
+        badge: 'Atención',
+        detail: `Nivel elevado de interrupciones respiratorias durante el sueño (umbral de vigilancia ≥ 18/h).`
+      });
+    }
+    if (sp2 != null && sp2 < 93.0) {
+      clinicalAlerts.push({
+        date: dt,
+        severity: 'MODERATE',
+        icon: '🩸',
+        title: `Saturación de Oxígeno (SpO2) Baja (${sp2.toFixed(1)}%)`,
+        badge: 'SpO2 < 93%',
+        detail: `Promedio diario de oxigenación por debajo de 93% (media 30d: ${baseSpo2 ? baseSpo2.toFixed(1) : '--'}%).`
+      });
+    }
+    if (ex.audio_exposure_events && ex.audio_exposure_events >= 2) {
+      clinicalAlerts.push({
+        date: dt,
+        severity: 'MODERATE',
+        icon: '🔊',
+        title: `Exposición a Ruido Fuerte (${ex.audio_exposure_events} eventos)`,
+        badge: 'Audición',
+        detail: `Apple Watch detectó ${ex.audio_exposure_events} picos de ruido ambiental elevado${r.audio_exposure_db ? ` (prom. ${Number(r.audio_exposure_db).toFixed(1)} dB)` : ''}.`
+      });
+    }
+  });
+
+  // Sort CRITICAL first, then newest date first
+  const sevRank = { CRITICAL: 0, HIGH: 1, MODERATE: 2 };
+  clinicalAlerts.sort((a, b) => (sevRank[a.severity] - sevRank[b.severity]) || b.date.localeCompare(a.date));
+
+  const mergedExtra = {
+    ...(latest.extra_metrics || {}),
+    walking_steadiness_pct: latest.extra_metrics?.walking_steadiness_pct ?? latestSteadiness,
+    six_min_walk_m: latest.extra_metrics?.six_min_walk_m ?? latestSixMin
+  };
+
   return {
     status: "success",
     is_day_one: false,
+    clinical_alerts: clinicalAlerts,
     today: {
       date: latest.recorded_date,
       score: latest.recovery_score || todayPillars.score,
@@ -652,7 +782,7 @@ function processBiometricHistory(history, workouts) {
       audio_exposure_db: latest.audio_exposure_db,
       vo2_max: latest.vo2_max ?? latestVo2,
       body_mass_kg: latest.body_mass_kg ?? latestWeight,
-      extra_metrics: latest.extra_metrics || {},
+      extra_metrics: mergedExtra,
       base_hrv: baseHrv,
       base_rhr: baseRhr,
       base_resp: baseResp,
@@ -855,11 +985,138 @@ function renderDashboard(data) {
     cardSleepSub.className = `text-[10px] font-semibold ${today.pillars.sleep.status === 'GREEN' ? 'text-emerald-400' : (today.pillars.sleep.status === 'YELLOW' ? 'text-amber-400' : 'text-rose-400')}`;
   }
 
+  renderVitalsAndSleepStages(today);
+  renderExerciseAndMobility(today);
+  renderClinicalAlerts(data.clinical_alerts || []);
   renderWorstAspect(today.worst_aspect);
   renderWeeklyCalendar(data.weekly_calendar || []);
   renderChartBars(data.trends);
   renderWorkouts(data.recent_workouts);
   renderCalorieMatrix();
+}
+
+// 5b. Render Sleep Architecture Stages & Apple Vitals Card
+function renderVitalsAndSleepStages(t) {
+  const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setText('stage-deep', t.deep_sleep != null ? `${Number(t.deep_sleep).toFixed(2)}h` : '--');
+  setText('stage-rem', t.rem_sleep != null ? `${Number(t.rem_sleep).toFixed(2)}h` : '--');
+  setText('stage-core', t.core_sleep != null ? `${Number(t.core_sleep).toFixed(2)}h` : '--');
+  setText('stage-awake', t.awake_sleep != null ? `${Number(t.awake_sleep).toFixed(2)}h` : '--');
+
+  setText('vitals-range-badge', `Base ${t.history_days || 7}d`);
+  setText('vital-temp', t.wrist_temp_deviation != null ? `${Number(t.wrist_temp_deviation).toFixed(2)} °C` : '-- °C');
+  setText('vital-temp-sub', t.base_temp != null ? `Media: ${t.base_temp.toFixed(2)} °C` : 'Sin base');
+  setText('vital-resp', t.respiratory_rate != null ? `${Number(t.respiratory_rate).toFixed(1)} rpm` : '-- rpm');
+  setText('vital-resp-sub', t.base_resp != null ? `Media: ${t.base_resp.toFixed(1)} rpm` : 'Sin base');
+  setText('vital-spo2', t.spo2_pct != null ? `${Number(t.spo2_pct).toFixed(1)} %` : '-- %');
+  setText('vital-spo2-sub', t.base_spo2 != null ? `Media: ${t.base_spo2.toFixed(1)} %` : 'Sin base');
+  setText('vital-breath-dist', t.breathing_disturbances != null ? `${Number(t.breathing_disturbances).toFixed(1)} /h` : '-- /h');
+  setText('vital-breath-dist-sub', t.base_breath_dist != null ? `Media: ${t.base_breath_dist.toFixed(1)} /h` : 'Sin base');
+
+  setText('vital-avg-hr', t.avg_hr != null ? `${Math.round(t.avg_hr)} lpm` : '--');
+  setText('vital-daylight', t.daylight_minutes != null ? `${t.daylight_minutes} min` : '--');
+  setText('vital-audio', t.audio_exposure_db != null ? `${Math.round(t.audio_exposure_db)} dB` : '--');
+  setText('vital-weight', t.body_mass_kg != null ? `${Number(t.body_mass_kg).toFixed(1)} kg` : '--');
+}
+
+// 5c. Render Exercise, Walking, Physical Effort & Gait Biomechanics Tab
+function renderExerciseAndMobility(t) {
+  const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  const ex = t.extra_metrics || {};
+
+  setText('ex-date-badge', t.date || 'Hoy');
+  setText('ex-steps', t.steps != null ? Number(t.steps).toLocaleString('es-CO') : '--');
+  setText('ex-steps-sub', t.base_steps != null ? `Media 30d: ${Number(t.base_steps).toLocaleString('es-CO')}` : 'Media: --');
+  setText('ex-active-cal', t.active_calories != null ? `${t.active_calories} kcal` : '-- kcal');
+  setText('ex-basal-cal', t.basal_calories != null ? `Basal: ${t.basal_calories} kcal` : 'Basal: --');
+  setText('ex-minutes', t.exercise_minutes != null ? `${t.exercise_minutes} min` : '-- min');
+  setText('ex-stand-hours', t.stand_hours != null ? `De pie: ${t.stand_hours} h` : 'De pie: --');
+  setText('ex-distance', t.distance_km != null ? `${Number(t.distance_km).toFixed(2)} km` : '-- km');
+  setText('ex-cycling', ex.cycling_km != null ? `Bici: ${Number(ex.cycling_km).toFixed(2)} km` : 'Bici: 0 km');
+  setText('ex-effort', ex.physical_effort != null ? `${Number(ex.physical_effort).toFixed(1)} MET` : '--');
+  setText('ex-flights', t.flights_climbed != null ? `Pisos: ${t.flights_climbed}` : 'Pisos: --');
+  setText('ex-vo2', t.vo2_max != null ? `${Number(t.vo2_max).toFixed(1)}` : '--');
+
+  setText('mob-walk-hr', t.walking_hr_avg != null ? `${Math.round(t.walking_hr_avg)} lpm` : '-- lpm');
+  setText('mob-hr-range', (t.min_hr != null && t.max_hr != null) ? `Mín ${Math.round(t.min_hr)} / Máx ${Math.round(t.max_hr)}` : 'Mín/Máx: --');
+  setText('mob-walk-speed', ex.walking_speed_kmh != null ? `${Number(ex.walking_speed_kmh).toFixed(2)} km/h` : '-- km/h');
+  setText('mob-step-len', ex.walking_step_length_cm != null ? `Paso: ${Math.round(ex.walking_step_length_cm)} cm` : 'Paso: -- cm');
+  setText('mob-asymmetry', ex.walking_asymmetry_pct != null ? `${Number(ex.walking_asymmetry_pct).toFixed(1)} %` : '-- %');
+  setText('mob-double-supp', ex.walking_double_support_pct != null ? `Doble apoyo: ${Number(ex.walking_double_support_pct).toFixed(1)}%` : 'Doble apoyo: --');
+  setText('mob-steadiness', ex.walking_steadiness_pct != null ? `${Number(ex.walking_steadiness_pct).toFixed(1)} %` : '-- %');
+  const stairsTxt = (ex.stair_ascent_speed != null || ex.stair_descent_speed != null)
+    ? `↑${ex.stair_ascent_speed ?? '--'} / ↓${ex.stair_descent_speed ?? '--'}`
+    : '-- m/s';
+  setText('mob-stairs', stairsTxt);
+  setText('mob-sixmin', ex.six_min_walk_m != null ? `${Math.round(ex.six_min_walk_m)} m` : '-- m');
+}
+
+// 5d. Render Important Clinical Alerts (Hypertension, Sleep Apnea, Fever Spikes, High Breathing Disturbances) with exact dates
+function renderClinicalAlerts(alerts) {
+  const listEl = document.getElementById('clinical-alerts-list');
+  const badgeEl = document.getElementById('alerts-tab-badge');
+  const pillEl = document.getElementById('alerts-total-pill');
+  const stripEl = document.getElementById('clinical-alerts-strip');
+  const stripText = document.getElementById('clinical-alerts-strip-text');
+
+  const count = alerts.length;
+  if (badgeEl) {
+    badgeEl.textContent = String(count);
+    badgeEl.classList.toggle('hidden', count === 0);
+  }
+  if (pillEl) {
+    pillEl.textContent = `${count} evento${count === 1 ? '' : 's'}`;
+  }
+
+  // Update top compact banner on Vitals tab
+  if (stripEl && stripText) {
+    const crit = alerts.filter(a => a.severity === 'CRITICAL');
+    if (count > 0) {
+      const panelVitals = document.getElementById('dash-panel-vitals');
+      if (panelVitals && !panelVitals.classList.contains('hidden')) {
+        stripEl.classList.remove('hidden');
+      }
+      if (crit.length > 0) {
+        stripText.textContent = `${crit.map(c => `${c.title} (${c.date})`).slice(0, 2).join(' • ')}`;
+      } else {
+        stripText.textContent = `${count} alerta(s) importante(s) en los últimos 30 días (${alerts[0].date})`;
+      }
+    } else {
+      stripEl.classList.add('hidden');
+    }
+  }
+
+  if (!listEl) return;
+  if (count === 0) {
+    listEl.innerHTML = `<div class="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 font-semibold">✅ Sin alertas clínicas críticas ni anomalías relevantes en los últimos 30 días.</div>`;
+    return;
+  }
+
+  listEl.innerHTML = alerts.map(a => {
+    const style = a.severity === 'CRITICAL'
+      ? 'border-rose-500/40 bg-rose-500/10 text-rose-300'
+      : (a.severity === 'HIGH'
+        ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+        : 'border-sky-500/30 bg-sky-500/10 text-sky-300');
+    const badgeStyle = a.severity === 'CRITICAL'
+      ? 'bg-rose-500/25 text-rose-200'
+      : (a.severity === 'HIGH' ? 'bg-amber-500/25 text-amber-200' : 'bg-sky-500/25 text-sky-200');
+    return `
+      <div class="p-4 rounded-2xl border ${style} flex items-start gap-3">
+        <span class="text-2xl shrink-0 mt-0.5">${a.icon}</span>
+        <div class="flex-1 min-w-0">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="text-xs sm:text-sm font-extrabold text-white">${a.title}</h3>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-slate-900/70 text-slate-200">📅 ${a.date}</span>
+              <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${badgeStyle}">${a.badge}</span>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-200 mt-1.5 leading-relaxed">${a.detail}</p>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 // 6. Highlight Worst Aspect of the Day

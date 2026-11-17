@@ -154,8 +154,35 @@
         </div>
       </div>
 
-      <!-- Responsive Dashboard Grid Layout -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Dashboard Sub-Tab Switcher (Keeps Vitals, Exercise/Mobility & Clinical Alerts clean and uncluttered) -->
+      <div class="flex items-center justify-center p-1 rounded-2xl glass-card max-w-lg mx-auto mb-5 gap-1">
+        <button id="dash-subtab-vitals" type="button" class="flex-1 py-2 px-2 rounded-xl text-[11px] sm:text-xs font-extrabold text-cyan-400 bg-cyan-500/15 transition-all">
+          🫀 Vitales & Sueño
+        </button>
+        <button id="dash-subtab-exercise" type="button" class="flex-1 py-2 px-2 rounded-xl text-[11px] sm:text-xs font-extrabold text-slate-400 hover:text-white transition-all">
+          🏃 Ejercicio & Marcha
+        </button>
+        <button id="dash-subtab-alerts" type="button" class="flex-1 py-2 px-2 rounded-xl text-[11px] sm:text-xs font-extrabold text-slate-400 hover:text-white transition-all flex items-center justify-center gap-1.5">
+          <span>🚨 Alertas</span>
+          <span id="alerts-tab-badge" class="hidden px-1.5 py-0.5 rounded-full text-[9px] font-black bg-rose-500 text-white">0</span>
+        </button>
+      </div>
+
+      <!-- Compact Clinical Alert Strip (visible on Vitals tab only when real clinical alerts exist) -->
+      <div id="clinical-alerts-strip" class="hidden mb-5">
+        <button id="btn-jump-to-alerts" type="button" class="w-full text-left glass-card rounded-2xl px-4 py-3 border border-rose-500/40 bg-rose-500/10 hover:bg-rose-500/15 transition-all flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="text-lg shrink-0">🚨</span>
+            <p id="clinical-alerts-strip-text" class="text-xs font-bold text-rose-200 truncate">Alertas clínicas detectadas en los últimos 30 días</p>
+          </div>
+          <span class="text-[11px] font-extrabold text-rose-300 shrink-0">Ver fechas →</span>
+        </button>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- DASHBOARD SUB-PANEL 1: VITALS & SLEEP (Default)              -->
+      <!-- ============================================================ -->
+      <div id="dash-panel-vitals" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
         <!-- ======================================================== -->
         <!-- LEFT COLUMN: Recovery Hero, Continuous Spectrum & Pillars-->
@@ -257,12 +284,80 @@
                 <span class="text-[10px] text-slate-400 font-semibold" id="card-sleep-sub">Meta: 8.0h</span>
               </div>
             </div>
+
+            <!-- Sleep Stages Micro-Bar -->
+            <div id="sleep-stages-bar" class="mt-3 pt-3 border-t border-white/5 grid grid-cols-4 gap-2 text-center text-[10px]">
+              <div class="p-1.5 rounded-xl bg-slate-900/50">
+                <span class="text-slate-400 block">Profundo</span>
+                <strong id="stage-deep" class="text-indigo-400 font-extrabold">--</strong>
+              </div>
+              <div class="p-1.5 rounded-xl bg-slate-900/50">
+                <span class="text-slate-400 block">REM</span>
+                <strong id="stage-rem" class="text-cyan-400 font-extrabold">--</strong>
+              </div>
+              <div class="p-1.5 rounded-xl bg-slate-900/50">
+                <span class="text-slate-400 block">Core</span>
+                <strong id="stage-core" class="text-sky-300 font-extrabold">--</strong>
+              </div>
+              <div class="p-1.5 rounded-xl bg-slate-900/50">
+                <span class="text-slate-400 block">Despierto</span>
+                <strong id="stage-awake" class="text-rose-300 font-extrabold">--</strong>
+              </div>
+            </div>
+          </section>
+
+          <!-- 4b. Constantes Vitales & Respiratorio (Apple Vitals Style) -->
+          <section class="glass-card rounded-3xl p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Constantes Vitales & Entorno</h2>
+              <span id="vitals-range-badge" class="text-[10px] font-semibold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full">Base 30d</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2.5">
+              <div class="p-3 rounded-2xl bg-slate-900/70 border border-white/5">
+                <span class="text-[10px] text-slate-400 font-bold uppercase">Temp. Muñeca</span>
+                <p id="vital-temp" class="text-lg font-black text-orange-400 mt-0.5">-- °C</p>
+                <span id="vital-temp-sub" class="text-[10px] text-slate-500">Base: --</span>
+              </div>
+              <div class="p-3 rounded-2xl bg-slate-900/70 border border-white/5">
+                <span class="text-[10px] text-slate-400 font-bold uppercase">Respiración</span>
+                <p id="vital-resp" class="text-lg font-black text-teal-400 mt-0.5">-- rpm</p>
+                <span id="vital-resp-sub" class="text-[10px] text-slate-500">Base: --</span>
+              </div>
+              <div class="p-3 rounded-2xl bg-slate-900/70 border border-white/5">
+                <span class="text-[10px] text-slate-400 font-bold uppercase">Oxígeno (SpO2)</span>
+                <p id="vital-spo2" class="text-lg font-black text-sky-400 mt-0.5">-- %</p>
+                <span id="vital-spo2-sub" class="text-[10px] text-slate-500">Base: --</span>
+              </div>
+              <div class="p-3 rounded-2xl bg-slate-900/70 border border-white/5">
+                <span class="text-[10px] text-slate-400 font-bold uppercase">Alt. Resp. Sueño</span>
+                <p id="vital-breath-dist" class="text-lg font-black text-amber-400 mt-0.5">-- /h</p>
+                <span id="vital-breath-dist-sub" class="text-[10px] text-slate-500">Base: --</span>
+              </div>
+            </div>
+            <div class="mt-3 pt-3 border-t border-white/5 grid grid-cols-4 gap-2 text-center text-[10px]">
+              <div>
+                <span class="text-slate-500 block">FC Prom</span>
+                <strong id="vital-avg-hr" class="text-slate-200 font-bold">--</strong>
+              </div>
+              <div>
+                <span class="text-slate-500 block">Luz Solar</span>
+                <strong id="vital-daylight" class="text-amber-300 font-bold">--</strong>
+              </div>
+              <div>
+                <span class="text-slate-500 block">Ruido</span>
+                <strong id="vital-audio" class="text-slate-200 font-bold">--</strong>
+              </div>
+              <div>
+                <span class="text-slate-500 block">Peso</span>
+                <strong id="vital-weight" class="text-emerald-300 font-bold">--</strong>
+              </div>
+            </div>
           </section>
 
         </div>
 
         <!-- ======================================================== -->
-        <!-- RIGHT COLUMN: Calendar Matrix, Sleek HRV & Workouts      -->
+        <!-- RIGHT COLUMN: Calendar Matrix & Sleek HRV                -->
         <!-- ======================================================== -->
         <div class="lg:col-span-7 space-y-6">
 
@@ -284,7 +379,7 @@
             <div class="flex items-center justify-between mb-4">
               <div>
                 <h2 class="text-sm font-bold text-white uppercase tracking-wider">Evolución de Variabilidad Cardíaca</h2>
-                <p class="text-[11px] text-slate-400">Morfología de ondas vs línea base semanal</p>
+                <p class="text-[11px] text-slate-400">Morfología de ondas vs línea base de 30 días</p>
               </div>
               <span class="text-xs font-bold text-cyan-400" id="hrv-avg-label">Media: -- ms</span>
             </div>
@@ -295,20 +390,139 @@
             </div>
           </section>
 
-          <!-- 7. Recent Workouts Sessions with Prominent Numbers & Activity Icons -->
-          <section class="glass-card rounded-3xl p-6">
-            <div class="flex items-center justify-between mb-4">
-              <h2 class="text-sm font-bold text-white uppercase tracking-wider">Sesiones de Entrenamiento</h2>
-              <span class="text-xs text-slate-400">Carga cardiovascular (Strain)</span>
+        </div>
+
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- DASHBOARD SUB-PANEL 2: EXERCISE, WALKING & MOBILITY          -->
+      <!-- ============================================================ -->
+      <div id="dash-panel-exercise" class="hidden space-y-6">
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+          <!-- Left: Actividad Diaria & Esfuerzo Físico -->
+          <section class="lg:col-span-6 glass-card rounded-3xl p-6 space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-white/5">
+              <div>
+                <h2 class="text-sm font-bold text-white uppercase tracking-wider">🏃 Actividad & Esfuerzo Físico</h2>
+                <p class="text-[11px] text-slate-400 mt-0.5">Resumen de movimiento, gasto energético y capacidad aeróbica</p>
+              </div>
+              <span id="ex-date-badge" class="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">Hoy</span>
             </div>
-            <!-- Dynamic Workouts List -->
-            <div id="workouts-list" class="space-y-3">
-              <p class="text-xs text-slate-400 italic">No hay entrenamientos registrados aún.</p>
+
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div class="p-3.5 rounded-2xl bg-slate-900/70 border border-emerald-500/20">
+                <span class="text-[10px] text-slate-400 uppercase font-bold">Pasos</span>
+                <p id="ex-steps" class="text-xl font-black text-emerald-400 mt-0.5">--</p>
+                <span id="ex-steps-sub" class="text-[10px] text-slate-500">Media: --</span>
+              </div>
+              <div class="p-3.5 rounded-2xl bg-slate-900/70 border border-amber-500/20">
+                <span class="text-[10px] text-slate-400 uppercase font-bold">Cal. Activas</span>
+                <p id="ex-active-cal" class="text-xl font-black text-amber-400 mt-0.5">-- kcal</p>
+                <span id="ex-basal-cal" class="text-[10px] text-slate-500">Basal: --</span>
+              </div>
+              <div class="p-3.5 rounded-2xl bg-slate-900/70 border border-cyan-500/20">
+                <span class="text-[10px] text-slate-400 uppercase font-bold">Ejercicio</span>
+                <p id="ex-minutes" class="text-xl font-black text-cyan-400 mt-0.5">-- min</p>
+                <span id="ex-stand-hours" class="text-[10px] text-slate-500">De pie: -- h</span>
+              </div>
+              <div class="p-3.5 rounded-2xl bg-slate-900/70 border border-white/5">
+                <span class="text-[10px] text-slate-400 uppercase font-bold">Distancia</span>
+                <p id="ex-distance" class="text-lg font-black text-white mt-0.5">-- km</p>
+                <span id="ex-cycling" class="text-[10px] text-slate-500">Bici: -- km</span>
+              </div>
+              <div class="p-3.5 rounded-2xl bg-slate-900/70 border border-white/5">
+                <span class="text-[10px] text-slate-400 uppercase font-bold">Esfuerzo / Pisos</span>
+                <p id="ex-effort" class="text-lg font-black text-violet-300 mt-0.5">--</p>
+                <span id="ex-flights" class="text-[10px] text-slate-500">Pisos: --</span>
+              </div>
+              <div class="p-3.5 rounded-2xl bg-slate-900/70 border border-rose-500/20">
+                <span class="text-[10px] text-slate-400 uppercase font-bold">VO2 Max</span>
+                <p id="ex-vo2" class="text-lg font-black text-rose-400 mt-0.5">--</p>
+                <span class="text-[10px] text-slate-500">mL/min·kg</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Right: Caminatas & Biomecánica de Marcha -->
+          <section class="lg:col-span-6 glass-card rounded-3xl p-6 space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-white/5">
+              <div>
+                <h2 class="text-sm font-bold text-white uppercase tracking-wider">🚶 Caminatas & Biomecánica</h2>
+                <p class="text-[11px] text-slate-400 mt-0.5">Métricas de marcha, escaleras y pulso al caminar</p>
+              </div>
+              <span class="text-[10px] font-semibold text-cyan-400 bg-cyan-500/10 px-2.5 py-1 rounded-full">Movilidad</span>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div class="p-3.5 rounded-2xl bg-slate-900/70 border border-white/5">
+                <span class="text-[10px] text-slate-400 uppercase font-bold">FC Caminando</span>
+                <p id="mob-walk-hr" class="text-xl font-black text-pink-400 mt-0.5">-- lpm</p>
+                <span id="mob-hr-range" class="text-[10px] text-slate-500">Mín/Máx: --</span>
+              </div>
+              <div class="p-3.5 rounded-2xl bg-slate-900/70 border border-white/5">
+                <span class="text-[10px] text-slate-400 uppercase font-bold">Vel. Marcha</span>
+                <p id="mob-walk-speed" class="text-xl font-black text-cyan-400 mt-0.5">-- km/h</p>
+                <span id="mob-step-len" class="text-[10px] text-slate-500">Paso: -- cm</span>
+              </div>
+              <div class="p-3.5 rounded-2xl bg-slate-900/70 border border-white/5">
+                <span class="text-[10px] text-slate-400 uppercase font-bold">Asimetría</span>
+                <p id="mob-asymmetry" class="text-xl font-black text-emerald-400 mt-0.5">-- %</p>
+                <span id="mob-double-supp" class="text-[10px] text-slate-500">Doble apoyo: --%</span>
+              </div>
+              <div class="p-3.5 rounded-2xl bg-slate-900/70 border border-white/5">
+                <span class="text-[10px] text-slate-400 uppercase font-bold">Estabilidad</span>
+                <p id="mob-steadiness" class="text-lg font-black text-white mt-0.5">-- %</p>
+                <span class="text-[10px] text-slate-500">Marcha Apple</span>
+              </div>
+              <div class="p-3.5 rounded-2xl bg-slate-900/70 border border-white/5">
+                <span class="text-[10px] text-slate-400 uppercase font-bold">Escaleras</span>
+                <p id="mob-stairs" class="text-base font-black text-amber-300 mt-0.5">-- m/s</p>
+                <span class="text-[10px] text-slate-500">Subir / Bajar</span>
+              </div>
+              <div class="p-3.5 rounded-2xl bg-slate-900/70 border border-white/5">
+                <span class="text-[10px] text-slate-400 uppercase font-bold">Test 6 Min</span>
+                <p id="mob-sixmin" class="text-lg font-black text-sky-300 mt-0.5">-- m</p>
+                <span class="text-[10px] text-slate-500">Capacidad funcional</span>
+              </div>
             </div>
           </section>
 
         </div>
 
+        <!-- Sesiones de Entrenamiento (Strain) -->
+        <section class="glass-card rounded-3xl p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-bold text-white uppercase tracking-wider">🔥 Sesiones de Entrenamiento</h2>
+            <span class="text-xs text-slate-400">Carga cardiovascular (Strain)</span>
+          </div>
+          <div id="workouts-list" class="space-y-3">
+            <p class="text-xs text-slate-400 italic">No hay entrenamientos registrados aún.</p>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- DASHBOARD SUB-PANEL 3: IMPORTANT CLINICAL ALERTS (30 DAYS)   -->
+      <!-- ============================================================ -->
+      <div id="dash-panel-alerts" class="hidden space-y-6">
+        <section class="glass-card rounded-3xl p-6 border border-rose-500/20">
+          <div class="flex items-center justify-between pb-4 border-b border-white/5">
+            <div>
+              <h2 class="text-sm font-bold text-rose-400 uppercase tracking-wider flex items-center gap-2">
+                <span>🚨</span> Alertas Clínicas Importantes (Últimos 30 Días)
+              </h2>
+              <p class="text-[11px] text-slate-400 mt-0.5">Eventos críticos de tu Apple Watch ordenados por fecha exacta (Hipertensión, Apnea del Sueño, Picos de Temperatura, Alteraciones Respiratorias, SpO2 bajo y Ruido).</p>
+            </div>
+            <span id="alerts-total-pill" class="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30">0 eventos</span>
+          </div>
+
+          <div id="clinical-alerts-list" class="mt-4 space-y-3">
+            <p class="text-xs text-slate-400 italic">Sin alertas clínicas registradas en los últimos 30 días.</p>
+          </div>
+        </section>
       </div>
     </main>
 
@@ -730,48 +944,67 @@
               📋 Copiar Prompt
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">Automatización diaria al despertar. Extrae TODA tu telemetría del Apple Watch (sueño completo, cardio, SpO2, respiración, apnea/alteraciones, temperatura, actividad, luz solar y ruido) con <code class="text-cyan-300">End Date is Today</code>.</p>
+          <p class="text-[10px] text-slate-400">Automatización diaria al despertar. Extrae TODA tu telemetría del Apple Watch (sueño, vitales, actividad, movilidad y alertas clínicas) usando <code class="text-cyan-300">End Date is Today</code> para NO repetir jamás alertas de días pasados.</p>
           <pre id="prompt-text-recovery" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "Recuperación Matutina":
+CRITICAL DEDUPLICATION RULE: EVERY Health query below MUST filter strictly by "End Date is Today" (NEVER pull without date filter) so past alerts (e.g. Hypertension or Sleep Apnea from previous days) are NEVER duplicated again. Only add a key to the Dictionary if the result has a valid value (> 0).
+
 Step 1: Format Current Date as "yyyy-MM-dd" (store as DateString).
-Step 2: Create a Dictionary with initial keys:
+Step 2: Create main Dictionary (Payload) with initial keys:
   * "recorded_date": DateString
   * "athlete_id": "{PIN}"
-Step 3 (Sleep Architecture - End Date is Today, convert seconds to Hours by dividing by 3600 and rounding to 2 decimals; only Set Dictionary Value if value > 0):
-  * "Sleep Analysis" where Value is NOT "Awake" AND Value is NOT "In Bed" -> Sum Duration ÷ 3600 -> key "sleep_hours"
-  * "Sleep Analysis" where Value is "Asleep Deep" -> Sum Duration ÷ 3600 -> key "deep_sleep_hours"
-  * "Sleep Analysis" where Value is "Asleep REM" -> Sum Duration ÷ 3600 -> key "rem_sleep_hours"
-  * "Sleep Analysis" where Value is "Asleep Core" -> Sum Duration ÷ 3600 -> key "core_sleep_hours"
-  * "Sleep Analysis" where Value is "Awake" -> Sum Duration ÷ 3600 -> key "awake_sleep_hours"
-Step 4 (Cardiovascular Vitals - End Date is Today; only Set Dictionary Value if it has any value):
-  * "Resting Heart Rate" -> Calculate Statistics: Average -> key "resting_hr"
-  * "Heart Rate Variability SDNN" -> Calculate Statistics: Average -> key "hrv_ms"
-  * "Heart Rate" -> Calculate Statistics: Average -> key "avg_hr"; Minimum -> key "min_hr"; Maximum -> key "max_hr"
-  * "Walking Heart Rate Average" -> Calculate Statistics: Average -> key "walking_hr_avg"
-  * "VO2 Max" (latest 1 sample, no date filter) -> Value as Number -> key "vo2_max"
-Step 5 (Respiratory, Oxygen & Temperature - End Date is Today; leave Unit blank/default on Health actions, BioCoach auto-converts; only Set Dictionary Value if it has any value):
-  * "Respiratory Rate" -> Calculate Statistics: Average -> key "respiratory_rate"
-  * "Blood Oxygen" (Oxygen Saturation) -> Calculate Statistics: Average -> key "spo2_pct"
-  * "Breathing Disturbances" (Sleeping Breathing Disturbances) -> Calculate Statistics: Average -> key "breathing_disturbances"
-  * "Apple Sleeping Wrist Temperature" -> Calculate Statistics: Average -> key "wrist_temp_deviation"
-Step 6 (Activity, Energy & Environment - End Date is Today; round INT fields to whole integers with no decimals; only Set Dictionary Value if value > 0):
+Step 3 (Sleep Architecture - End Date is Today; convert Duration seconds ÷ 3600 to Hours, round to 2 decimals; only add if > 0):
+  * "Sleep Analysis" where Value is NOT "Awake" AND Value is NOT "In Bed" -> key "sleep_hours"
+  * "Sleep Analysis" where Value is "Asleep Deep" -> key "deep_sleep_hours"
+  * "Sleep Analysis" where Value is "Asleep REM" -> key "rem_sleep_hours"
+  * "Sleep Analysis" where Value is "Asleep Core" -> key "core_sleep_hours"
+  * "Sleep Analysis" where Value is "Awake" -> key "awake_sleep_hours"
+Step 4 (Cardiovascular Vitals - End Date is Today; only add if it has any value):
+  * "Resting Heart Rate" -> Statistics: Average -> key "resting_hr"
+  * "Heart Rate Variability SDNN" -> Statistics: Average -> key "hrv_ms"
+  * "Heart Rate" -> Average -> key "avg_hr"; Minimum -> key "min_hr"; Maximum -> key "max_hr"
+  * "Walking Heart Rate Average" -> Statistics: Average -> key "walking_hr_avg"
+  * "VO2 Max" (End Date is Today ONLY) -> Average -> key "vo2_max"
+Step 5 (Respiratory, Oxygen & Wrist Temp - End Date is Today; leave Unit blank/default on Health actions, BioCoach auto-converts °F/°C and %; only add if it has any value):
+  * "Respiratory Rate" -> Statistics: Average -> key "respiratory_rate"
+  * "Blood Oxygen" (Oxygen Saturation) -> Statistics: Average -> key "spo2_pct"
+  * "Breathing Disturbances" -> Statistics: Average -> key "breathing_disturbances"
+  * "Apple Sleeping Wrist Temperature" -> Statistics: Average -> key "wrist_temp_deviation"
+Step 6 (Activity, Energy & Environment - End Date is Today; round INT fields to whole integers; only add if > 0):
   * "Steps" -> Sum, Round to Ones Place (integer) -> key "steps"
   * "Active Energy" -> Sum (kcal), Round to Ones Place (integer) -> key "active_calories"
-  * "Resting Energy" (Basal Energy) -> Sum (kcal), Round to Ones Place (integer) -> key "basal_calories"
+  * "Resting Energy" -> Sum (kcal), Round to Ones Place (integer) -> key "basal_calories"
   * "Apple Exercise Time" -> Sum (min), Round to Ones Place (integer) -> key "exercise_minutes"
+  * "Stand Hours" (Apple Stand Hour where Value is Stood) -> Count (integer) -> key "stand_hours"
   * "Walking + Running Distance" -> Sum (km), round to 2 decimals -> key "distance_km"
   * "Flights Climbed" -> Sum, Round to Ones Place (integer) -> key "flights_climbed"
   * "Time in Daylight" -> Sum (min), Round to Ones Place (integer) -> key "daylight_minutes"
-  * "Environmental Sound Levels" -> Calculate Statistics: Average (dB) -> key "audio_exposure_db"
-  * "Weight" (Body Mass, latest 1 sample) -> Value (kg) as Number -> key "body_mass_kg"
-Step 7: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date":
-- Request Body: JSON with the Dictionary
+  * "Environmental Sound Levels" -> Statistics: Average (dB) -> key "audio_exposure_db"
+  * "Weight" (Body Mass, End Date is Today ONLY) -> Value (kg) -> key "body_mass_kg"
+Step 7 (Mobility & Clinical Alerts Dictionary -> nested key "extra_metrics" inside Payload; EVERY query MUST use End Date is Today so past alerts are NEVER pulled twice):
+  Create an empty Dictionary (ExtraDict) and add ONLY keys with values > 0:
+  * "Walking Speed" -> Average (km/h) -> "walking_speed_kmh"
+  * "Walking Step Length" -> Average (cm) -> "walking_step_length_cm"
+  * "Walking Double Support Percentage" -> Average -> "walking_double_support_pct"
+  * "Walking Asymmetry Percentage" -> Average -> "walking_asymmetry_pct"
+  * "Walking Steadiness" -> Average -> "walking_steadiness_pct"
+  * "Stair Speed: Up" -> Average (m/s) -> "stair_ascent_speed"
+  * "Stair Speed: Down" -> Average (m/s) -> "stair_descent_speed"
+  * "Cycling Distance" -> Sum (km) -> "cycling_km"
+  * "Physical Effort" -> Average -> "physical_effort"
+  * "Six-Minute Walk" -> Average (m) -> "six_min_walk_m"
+  * "Hypertension Notifications" (End Date is Today ONLY) -> Count -> if > 0 set "hypertension_events"
+  * "Sleep Apnea Notifications" (End Date is Today ONLY) -> Count -> if > 0 set "sleep_apnea_events"
+  * "Environmental Audio Exposure Events" (End Date is Today ONLY) -> Count -> if > 0 set "audio_exposure_events"
+  Set Dictionary Value on Payload for key "extra_metrics" to ExtraDict.
+Step 8: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date":
+- Request Body: JSON with Payload Dictionary
 - Headers:
   * "Content-Type": "application/json"
   * "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
   * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
   * "Prefer": "resolution=merge-duplicates,return=representation"
   * "x-athlete-token": "{PIN}"
-Step 8: Show Notification with title "BioCoach Matutino" and body containing result from URL request.</pre>
+Step 9: Show Notification with title "BioCoach Matutino" and body containing result from URL request.</pre>
         </div>
 
         <!-- Prompt 00 (Opcional): Recuperación Manual de Ayer (solo si un día no corrió la automatización) -->
