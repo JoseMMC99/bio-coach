@@ -179,10 +179,15 @@ class BioCoachService:
             "watch_feedback": feedback
         }
 
-    def get_dashboard_summary(self, days: int = 7) -> Dict[str, Any]:
+    def get_dashboard_summary(
+        self,
+        days: int = 7,
+        athlete_id: Optional[str] = None,
+        is_demo: Optional[bool] = None
+    ) -> Dict[str, Any]:
         """Aggregates consolidated biometric trends and workouts for the WebApp Dashboard."""
-        history = self._fetch_recent_history(days=days)
-        workouts = self._fetch_recent_workouts(limit=5)
+        history = self._fetch_recent_history(days=days, athlete_id=athlete_id, is_demo=is_demo)
+        workouts = self._fetch_recent_workouts(limit=5, athlete_id=athlete_id, is_demo=is_demo)
 
         if not history:
             return {
@@ -393,7 +398,9 @@ Responde de manera empática, científica y accionable. Relaciona tus consejos d
                 "resting_hr": d["rhr"],
                 "hrv_ms": d["hrv"],
                 "recovery_score": d["score"],
-                "gemini_verdict": d["verdict"]
+                "gemini_verdict": d["verdict"],
+                "is_demo": True,
+                "athlete_id": "public_demo"
             }
             self._save_recovery_record(payload)
             rec_count += 1
@@ -414,7 +421,9 @@ Responde de manera empática, científica y accionable. Relaciona tus consejos d
                 "avg_hr": w["avg_hr"],
                 "max_hr": w["max_hr"],
                 "recovery_hr_1min": w["rec_hr"],
-                "gemini_feedback": w["feedback"]
+                "gemini_feedback": w["feedback"],
+                "is_demo": True,
+                "athlete_id": "public_demo"
             }
             self._save_workout_record(wk_payload)
             wk_count += 1
@@ -448,9 +457,18 @@ Responde de manera empática, científica y accionable. Relaciona tus consejos d
         )
         return profile, sleep_hours
 
-    def _fetch_recent_history(self, days: int = 7) -> List[Dict[str, Any]]:
+    def _fetch_recent_history(
+        self,
+        days: int = 7,
+        athlete_id: Optional[str] = None,
+        is_demo: Optional[bool] = None
+    ) -> List[Dict[str, Any]]:
         """Queries the last N daily_recovery records in descending chronological order."""
         endpoint = f"{self.supabase_url}/rest/v1/daily_recovery?order=recorded_date.desc&limit={days}"
+        if athlete_id:
+            endpoint += f"&athlete_id=eq.{athlete_id}"
+        if is_demo is not None:
+            endpoint += f"&is_demo=eq.{str(is_demo).lower()}"
         headers = self._get_headers()
         req = urllib.request.Request(endpoint, headers=headers, method="GET")
 
@@ -460,9 +478,18 @@ Responde de manera empática, científica y accionable. Relaciona tus consejos d
         except Exception:
             return []
 
-    def _fetch_recent_workouts(self, limit: int = 5) -> List[Dict[str, Any]]:
+    def _fetch_recent_workouts(
+        self,
+        limit: int = 5,
+        athlete_id: Optional[str] = None,
+        is_demo: Optional[bool] = None
+    ) -> List[Dict[str, Any]]:
         """Queries the last N workout records."""
         endpoint = f"{self.supabase_url}/rest/v1/workouts?order=created_at.desc&limit={limit}"
+        if athlete_id:
+            endpoint += f"&athlete_id=eq.{athlete_id}"
+        if is_demo is not None:
+            endpoint += f"&is_demo=eq.{str(is_demo).lower()}"
         headers = self._get_headers()
         req = urllib.request.Request(endpoint, headers=headers, method="GET")
 

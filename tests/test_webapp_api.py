@@ -143,5 +143,22 @@ class TestWebAppAPI(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body["status"], "success")
 
+    def test_manual_recovery_sync_with_athlete_isolation(self):
+        """Manual recovery sync supports athlete_id and is_demo isolation flags."""
+        self.mock_service.process_morning_recovery.return_value = {
+            "status": "success",
+            "recovery_score": 88
+        }
+        payload = {
+            "sleep_hours": "8.0",
+            "athlete_id": "athlete_private_jose",
+            "is_demo": False
+        }
+        status, body = self.api.handle_request("POST", "/api/v1/recovery", payload)
+        self.assertEqual(status, 200)
+        call_args = self.mock_service.process_morning_recovery.call_args[0][0]
+        self.assertEqual(call_args.athlete_id, "athlete_private_jose")
+        self.assertFalse(call_args.is_demo)
+
 if __name__ == "__main__":
     unittest.main()

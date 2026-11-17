@@ -119,6 +119,13 @@ class TestBioCoachAPIHandler(unittest.TestCase):
         self.assertEqual(status_code, 200)
         self.assertEqual(body["status"], "success")
 
+    def test_dashboard_endpoint_with_privacy_query_params(self):
+        """GET /api/v1/dashboard parses athlete_id and is_demo parameters."""
+        self.mock_service.get_dashboard_summary.return_value = {"status": "success", "is_day_one": True}
+        status_code, body = self.api.handle_request("GET", "/api/v1/dashboard?athlete_id=private_jose&is_demo=false", None)
+        self.assertEqual(status_code, 200)
+        self.mock_service.get_dashboard_summary.assert_called_with(athlete_id="private_jose", is_demo=False)
+
     def test_route_not_found_returns_404(self):
         """Unknown route returns 404 Not Found."""
         status_code, body = self.api.handle_request("POST", "/api/v1/non_existent", {})

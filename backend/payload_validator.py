@@ -24,6 +24,8 @@ class ShortcutPayloadValidator:
         hrv = self._coerce_float(raw.get("hrv_ms"))
         resp = self._coerce_float(raw.get("respiratory_rate"))
         temp = self._coerce_float(raw.get("wrist_temp_deviation"))
+        athlete_id = str(raw.get("athlete_id", "public_demo")).strip() or "public_demo"
+        is_demo = bool(raw.get("is_demo", False))
 
         # Require at least one key biometric indicator to be present
         if all(v is None for v in [sleep, rhr, hrv]):
@@ -36,7 +38,9 @@ class ShortcutPayloadValidator:
             resting_hr=rhr,
             hrv_ms=hrv,
             respiratory_rate=resp,
-            wrist_temp_deviation=temp
+            wrist_temp_deviation=temp,
+            athlete_id=athlete_id,
+            is_demo=is_demo
         )
 
     def validate_workout_payload(self, raw: Any) -> Dict[str, Any]:
@@ -71,7 +75,9 @@ class ShortcutPayloadValidator:
             "active_calories": calories,
             "avg_hr": avg_hr,
             "max_hr": max_hr,
-            "recovery_hr_1min": rec_hr
+            "recovery_hr_1min": rec_hr,
+            "athlete_id": str(raw.get("athlete_id", "public_demo")).strip() or "public_demo",
+            "is_demo": bool(raw.get("is_demo", False))
         }
 
     def validate_instant_hr_payload(self, raw: Any) -> Dict[str, Any]:

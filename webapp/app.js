@@ -13,6 +13,7 @@ const DEFAULT_GEMINI_KEY = atob("QVEuQWI4Uk42TE1aT3YxVVVNYWJxa0ZXQVBHSWlSa05jbkV
 document.addEventListener('DOMContentLoaded', () => {
   initServiceWorker();
   initNavigation();
+  initVaultModal();
   initDashboard();
   initNutrition();
   initChat();
@@ -66,8 +67,128 @@ function initNavigation() {
   if (btnChat) btnChat.addEventListener('click', () => setActiveTab(btnChat, viewChat));
 }
 
+// ==============================================================================
+// PRIVACY & ATHLETE VAULT ISOLATION
+// ==============================================================================
+function getAthleteKey() {
+  return localStorage.getItem('BIOCOACH_ATHLETE_KEY') || '';
+}
+
+function updateVaultHeaderUI() {
+  const badge = document.getElementById('vault-badge');
+  const btn = document.getElementById('btn-toggle-vault');
+  const athleteKey = getAthleteKey();
+
+  if (athleteKey) {
+    if (badge) {
+      badge.className = 'px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1';
+      badge.innerHTML = '<span>🟢</span> Bóveda Privada';
+    }
+    if (btn) {
+      btn.innerHTML = '<span>🔒</span> Salir a Demo';
+      btn.title = 'Bloquear bóveda y volver al modo demostración público';
+    }
+  } else {
+    if (badge) {
+      badge.className = 'px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30 flex items-center gap-1';
+      badge.innerHTML = '<span>✨</span> Modo Demo';
+    }
+    if (btn) {
+      btn.innerHTML = '<span>🔐</span> Mi Bóveda';
+      btn.title = 'Desbloquear tu telemetría médica personal con tu clave de atleta';
+    }
+  }
+}
+
+function initVaultModal() {
+  const modal = document.getElementById('vault-modal');
+  const btnToggle = document.getElementById('btn-toggle-vault');
+  const btnClose = document.getElementById('btn-close-vault-modal');
+  const btnCancel = document.getElementById('btn-cancel-vault');
+  const form = document.getElementById('vault-form');
+  const inputKey = document.getElementById('input-vault-key');
+
+  if (!modal || !btnToggle) return;
+
+  function closeModal() {
+    modal.classList.add('hidden');
+    if (inputKey) inputKey.value = '';
+  }
+
+  btnToggle.addEventListener('click', () => {
+    const currentKey = getAthleteKey();
+    if (currentKey) {
+      if (confirm('¿Deseas salir de tu bóveda privada y volver al Modo Demostración de portafolio?')) {
+        localStorage.removeItem('BIOCOACH_ATHLETE_KEY');
+        updateVaultHeaderUI();
+        initDashboard();
+      }
+    } else {
+      modal.classList.remove('hidden');
+      if (inputKey) inputKey.focus();
+    }
+  });
+
+  if (btnClose) btnClose.addEventListener('click', closeModal);
+  if (btnCancel) btnCancel.addEventListener('click', closeModal);
+
+  if (form) {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const enteredKey = inputKey.value.trim();
+      if (!enteredKey) return;
+
+      localStorage.setItem('BIOCOACH_ATHLETE_KEY', enteredKey);
+      closeModal();
+      updateVaultHeaderUI();
+      initDashboard();
+    });
+  }
+}
+
+// Generates rich, realistic 7-day demonstration dataset for public portfolio showcase
+function getPortfolioDemoData() {
+  const today = new Date();
+  
+  const demoDays = [
+    { offset: 0, sleep: 7.8, deep: 1.6, rem: 1.9, rhr: 52, hrv: 64, score: 92, tl: "GREEN", verdict: "🟢 Recuperación 92%. Sistema nervioso en balance óptimo. Gran día para entrenar fuerza." },
+    { offset: 1, sleep: 5.2, deep: 0.8, rem: 1.0, rhr: 64, hrv: 24, score: 42, tl: "RED", verdict: "🔴 Recuperación 42%. Variabilidad cardíaca muy deprimida y sueño insuficiente. Prioriza descanso." },
+    { offset: 2, sleep: 6.8, deep: 1.2, rem: 1.4, rhr: 56, hrv: 52, score: 72, tl: "YELLOW", verdict: "🟡 Recuperación 72%. Nivel moderado. Asimila carga aeróbica ligera." },
+    { offset: 3, sleep: 8.4, deep: 2.0, rem: 2.1, rhr: 50, hrv: 68, score: 95, tl: "GREEN", verdict: "🟢 Recuperación 95%. Sueño profundo y REM excepcionales. Capacidad de esfuerzo máxima." },
+    { offset: 4, sleep: 7.5, deep: 1.4, rem: 1.7, rhr: 53, hrv: 60, score: 86, tl: "GREEN", verdict: "🟢 Recuperación 86%. Ritmo circadiano estable." },
+    { offset: 5, sleep: 6.0, deep: 1.0, rem: 1.1, rhr: 58, hrv: 46, score: 64, tl: "YELLOW", verdict: "🟡 Recuperación 64%. Ligera taquicardia nocturna. Hidrata bien." },
+    { offset: 6, sleep: 7.2, deep: 1.3, rem: 1.5, rhr: 54, hrv: 58, score: 82, tl: "GREEN", verdict: "🟢 Recuperación 82%. Parámetros estables dentro de tu media basal." }
+  ];
+
+  const history = demoDays.map((d) => {
+    const dt = new Date(today);
+    dt.setDate(dt.getDate() - d.offset);
+    return {
+      recorded_date: dt.toISOString().slice(0, 10),
+      sleep_hours: d.sleep,
+      deep_sleep_hours: d.deep,
+      rem_sleep_hours: d.rem,
+      resting_hr: d.rhr,
+      hrv_ms: d.hrv,
+      recovery_score: d.score,
+      gemini_verdict: d.verdict,
+      is_demo: true
+    };
+  });
+
+  const demoWorkouts = [
+    { workout_type: "Fuerza / Hipertrofia", duration_minutes: 60, active_calories: 420, avg_hr: 138, max_hr: 165, recovery_hr_1min: 28, gemini_feedback: "🏋️ Carga de 14.5/21. Estimula síntesis proteica." },
+    { workout_type: "Running Intervalos", duration_minutes: 42, active_calories: 510, avg_hr: 158, max_hr: 178, recovery_hr_1min: 24, gemini_feedback: "🔥 Carga de 16.2/21. Zona 4 predominante." },
+    { workout_type: "Ciclismo / Fondo", duration_minutes: 75, active_calories: 580, avg_hr: 132, max_hr: 152, recovery_hr_1min: 30, gemini_feedback: "🚴 Carga de 13.0/21. Gran resistencia aeróbica." },
+    { workout_type: "Caminata de Recuperación", duration_minutes: 35, active_calories: 140, avg_hr: 98, max_hr: 112, recovery_hr_1min: 35, gemini_feedback: "🚶 Carga de 4.5/21. Descanso activo óptimo." }
+  ];
+
+  return processBiometricHistory(history, demoWorkouts);
+}
+
 // 3. Main Dashboard Telemetry Loader
-// Tries local backend first; if unavailable (running as hosted webapp), talks directly to Supabase PostgREST
+// In public visitor mode, serves portfolio demo data.
+// In private athlete mode, queries Supabase for the authenticated athlete's private records.
 async function initDashboard() {
   const dateEl = document.getElementById('current-date');
   if (dateEl) {
@@ -75,15 +196,25 @@ async function initDashboard() {
     dateEl.textContent = now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' });
   }
 
+  updateVaultHeaderUI();
+
+  const athleteKey = getAthleteKey();
+
+  // If no private athlete key is configured, serve rich 7-day demo showcase (Portfolio Mode)
+  if (!athleteKey) {
+    const demoData = getPortfolioDemoData();
+    renderDashboard(demoData);
+    return;
+  }
+
   let data = null;
 
-  // Try direct Supabase fetch first (100% cloud autonomous mode)
+  // Private Mode: Query Supabase for the authenticated athlete's private telemetry
   try {
-    data = await fetchDirectFromSupabase();
+    data = await fetchDirectFromSupabase(athleteKey);
   } catch (supabaseErr) {
-    // Fallback to local gateway if available
     try {
-      const res = await fetch('/api/v1/dashboard');
+      const res = await fetch(`/api/v1/dashboard?athlete_id=${encodeURIComponent(athleteKey)}&is_demo=false`);
       if (res.ok) data = await res.json();
     } catch (localErr) {
       console.warn("Could not connect to Supabase or local API", supabaseErr);
@@ -94,20 +225,29 @@ async function initDashboard() {
     renderDashboard(data);
   } else {
     const heroStatus = document.getElementById('hero-status-text');
-    if (heroStatus) heroStatus.textContent = 'Modo sin conexión o primer inicio';
+    if (heroStatus) heroStatus.textContent = 'Bóveda privada vacía. Registra tu primer sueño.';
   }
 }
 
 // Direct Supabase PostgREST Data Aggregator
-async function fetchDirectFromSupabase() {
+async function fetchDirectFromSupabase(athleteKey) {
   const headers = {
     'apikey': SUPABASE_CONFIG.publishableKey,
-    'Authorization': `Bearer ${SUPABASE_CONFIG.publishableKey}`
+    'Authorization': `Bearer ${SUPABASE_CONFIG.publishableKey}`,
+    'x-athlete-token': athleteKey || 'public_demo'
   };
 
+  const recUrl = athleteKey
+    ? `${SUPABASE_CONFIG.url}/rest/v1/daily_recovery?athlete_id=eq.${encodeURIComponent(athleteKey)}&is_demo=eq.false&order=recorded_date.desc&limit=7`
+    : `${SUPABASE_CONFIG.url}/rest/v1/daily_recovery?is_demo=eq.true&order=recorded_date.desc&limit=7`;
+
+  const wkUrl = athleteKey
+    ? `${SUPABASE_CONFIG.url}/rest/v1/workouts?athlete_id=eq.${encodeURIComponent(athleteKey)}&is_demo=eq.false&order=created_at.desc&limit=5`
+    : `${SUPABASE_CONFIG.url}/rest/v1/workouts?is_demo=eq.true&order=created_at.desc&limit=5`;
+
   const [recRes, wkRes] = await Promise.all([
-    fetch(`${SUPABASE_CONFIG.url}/rest/v1/daily_recovery?order=recorded_date.desc&limit=7`, { headers }),
-    fetch(`${SUPABASE_CONFIG.url}/rest/v1/workouts?order=created_at.desc&limit=5`, { headers })
+    fetch(recUrl, { headers }),
+    fetch(wkUrl, { headers })
   ]);
 
   if (!recRes.ok) throw new Error("Error querying Supabase daily_recovery");
@@ -781,6 +921,7 @@ function initManualSync() {
       try {
         const todayStr = new Date().toISOString().slice(0, 10);
         const evalRes = evaluateDailyPillars(sleepHours, hrvVal, rhrVal, 55.0, 54.0, 8.0);
+        const athleteKey = getAthleteKey();
 
         const payload = {
           recorded_date: todayStr,
@@ -790,7 +931,9 @@ function initManualSync() {
           resting_hr: rhrVal,
           hrv_ms: hrvVal,
           recovery_score: evalRes.score,
-          gemini_verdict: `Recuperación ${evalRes.score}%. Sistema ${evalRes.trafficLight === 'GREEN' ? 'óptimo' : 'con fatiga'}.`
+          gemini_verdict: `Recuperación ${evalRes.score}%. Sistema ${evalRes.trafficLight === 'GREEN' ? 'óptimo' : 'con fatiga'}.`,
+          athlete_id: athleteKey || 'public_demo',
+          is_demo: !athleteKey
         };
 
         const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/daily_recovery`, {
@@ -799,7 +942,8 @@ function initManualSync() {
             'apikey': SUPABASE_CONFIG.publishableKey,
             'Authorization': `Bearer ${SUPABASE_CONFIG.publishableKey}`,
             'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
+            'Prefer': 'return=representation',
+            'x-athlete-token': athleteKey || 'public_demo'
           },
           body: JSON.stringify(payload)
         });

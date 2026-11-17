@@ -32,7 +32,16 @@ class BioCoachAPIHandler:
             return 200, {"status": "healthy", "service": "BioCoach AI Gateway", "version": "1.0.0"}
 
         if method == "GET" and clean_path in ["/api/v1/dashboard", "/dashboard"]:
-            result = self.service.get_dashboard_summary()
+            athlete_id = None
+            is_demo = None
+            if "?" in path:
+                from urllib.parse import parse_qs
+                params = parse_qs(path.split("?", 1)[1])
+                athlete_id = params.get("athlete_id", [None])[0]
+                demo_param = params.get("is_demo", [None])[0]
+                if demo_param is not None:
+                    is_demo = demo_param.lower() in ["true", "1"]
+            result = self.service.get_dashboard_summary(athlete_id=athlete_id, is_demo=is_demo)
             return 200, result
 
         if method != "POST":

@@ -14,6 +14,8 @@ class DailyMetrics:
     hrv_ms: Optional[float] = None
     respiratory_rate: Optional[float] = None
     wrist_temp_deviation: Optional[float] = None
+    athlete_id: str = "public_demo"
+    is_demo: bool = False
 
 @dataclass
 class BaselineProfile:

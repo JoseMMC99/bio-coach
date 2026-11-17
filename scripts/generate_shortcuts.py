@@ -70,6 +70,7 @@ def generate_shortcut_plist(
         http_headers["apikey"] = DEFAULT_SUPABASE_KEY
         http_headers["Authorization"] = f"Bearer {DEFAULT_SUPABASE_KEY}"
         http_headers["Prefer"] = "return=representation"
+        http_headers["x-athlete-token"] = "atleta_privado"
 
     actions.append({
         "WFWorkflowActionIdentifier": "is.workflow.actions.downloadurl",

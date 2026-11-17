@@ -149,5 +149,37 @@ class TestBioCoachService(unittest.TestCase):
         self.assertEqual(mock_save_rec.call_count, 7)
         self.assertEqual(mock_save_wk.call_count, 4)
 
+    @patch("backend.service.BioCoachService._save_workout_record")
+    @patch("backend.service.BioCoachService._save_recovery_record")
+    def test_seed_demo_data_sets_demo_and_athlete_flags(self, mock_save_rec, mock_save_wk):
+        """Seeding demo data must explicitly flag is_demo=True and athlete_id='public_demo'."""
+        mock_save_rec.return_value = {"id": 1}
+        mock_save_wk.return_value = {"id": 1}
+
+        self.service.seed_demo_data()
+        
+        # Verify first recovery record payload contains demo isolation flags
+        rec_call_args = mock_save_rec.call_args_list[0][0][0]
+        self.assertTrue(rec_call_args.get("is_demo"))
+        self.assertEqual(rec_call_args.get("athlete_id"), "public_demo")
+
+        # Verify workout payload contains demo isolation flags
+        wk_call_args = mock_save_wk.call_args_list[0][0][0]
+        self.assertTrue(wk_call_args.get("is_demo"))
+        self.assertEqual(wk_call_args.get("athlete_id"), "public_demo")
+
+    @patch("backend.service.BioCoachService._fetch_recent_workouts")
+    @patch("backend.service.BioCoachService._fetch_recent_history")
+    def test_dashboard_summary_supports_athlete_filtering(self, mock_hist, mock_wk):
+        """Dashboard summary passes athlete_id and is_demo to data fetching layers."""
+        mock_hist.return_value = []
+        mock_wk.return_value = []
+
+        res = self.service.get_dashboard_summary(days=7, athlete_id="private_athlete_123", is_demo=False)
+        self.assertEqual(res["status"], "success")
+        self.assertTrue(res["is_day_one"])
+        mock_hist.assert_called_with(days=7, athlete_id="private_athlete_123", is_demo=False)
+        mock_wk.assert_called_with(limit=5, athlete_id="private_athlete_123", is_demo=False)
+
 if __name__ == "__main__":
     unittest.main()
