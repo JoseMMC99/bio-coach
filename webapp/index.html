@@ -736,12 +736,12 @@ Step 1: Add a List with numbers: 6, 5, 4, 3, 2, 1, 0.
 Step 2: Repeat with Each number in the List:
   * Calculate Date: Subtract (Repeat Item) days from Current Date.
   * Format Date as "yyyy-MM-dd" (DateString).
-  * Find Health samples for "Sleep Analysis" on that specific date. Calculate Sum of Duration in hours as Number.
+  * Find Health samples for "Sleep Analysis" on that specific date. Get duration in seconds, divide by 3600 to get hours (number between 0 and 24, e.g. 5.5).
   * Find Health samples for "Resting Heart Rate" on that specific date. Get average value as Number.
   * Find Health samples for "Heart Rate Variability SDNN" on that specific date. Get average value as Number.
   * Create a Dictionary with:
     - "recorded_date": DateString
-    - "sleep_hours": sleep duration
+    - "sleep_hours": sleep duration in hours
     - "resting_hr": resting heart rate
     - "hrv_ms": heart rate variability
     - "athlete_id": "{PIN}"
@@ -770,14 +770,14 @@ Step 4: Show Notification with title "BioCoach Historial" and body containing re
           <p class="text-[10px] text-slate-400">Captura el ciclo completo de las últimas 24 horas cada mañana al apagar el modo sueño.</p>
           <pre id="prompt-text-recovery" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "Recuperación Matutina":
 Step 1: Find Health samples for "Sleep Analysis" where End Date is in the last 24 hours.
-Step 2: Calculate the total duration of the sleep samples in hours as a decimal Number (e.g. 5.0).
+Step 2: Get duration of sleep samples in seconds. Use Calculate action to divide by 3600 (e.g. 18000 ÷ 3600 = 5.0). Result MUST be in hours (between 0.0 and 24.0, never raw seconds or minutes).
 Step 3: Find latest Health sample for "Resting Heart Rate" (limit 1, newest). Get sample Value as Number.
 Step 4: Find latest Health sample for "Heart Rate Variability SDNN" (limit 1, newest). Get sample Value as Number.
 Step 5: Format Current Date as "yyyy-MM-dd".
 Step 6: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date":
 - Request Body: JSON with:
   * "recorded_date": formatted date
-  * "sleep_hours": total sleep hours
+  * "sleep_hours": calculated sleep hours (e.g. 5.0)
   * "resting_hr": Resting Heart Rate number
   * "hrv_ms": Heart Rate Variability number
   * "athlete_id": "{PIN}"
