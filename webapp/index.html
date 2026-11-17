@@ -732,15 +732,15 @@
           </div>
           <p class="text-[10px] text-slate-400">Extrae sueño, HRV y FC reposo de Apple Health y los sube a Supabase.</p>
           <pre id="prompt-text-recovery" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create a new Apple Shortcut named "Recuperación Matutina".
-Step 1: Find latest Health sample for "Sleep Analysis" (limit to 1 sample, sorted by newest end date). Get its duration in hours, formatted as a pure decimal Number.
-Step 2: Find latest Health sample for "Resting Heart Rate" (limit to 1 sample, sorted by newest). Extract only the numeric value (as a pure Number, without units like bpm or lpm).
-Step 3: Find latest Health sample for "Heart Rate Variability SDNN" (limit to 1 sample, sorted by newest). Extract only the numeric value (as a pure Number, without units like ms).
-Step 4: Format Current Date using Custom Date Format "yyyy-MM-dd".
+Step 1: Find latest Health sample for "Sleep Analysis" (limit 1, sorted by newest end date). Get the Duration of this sample in hours (do NOT use Convert Measurement to meters; use Time duration in hours).
+Step 2: Find latest Health sample for "Resting Heart Rate" (limit 1, sorted by newest). Get the sample's Value as Number (without bpm).
+Step 3: Find latest Health sample for "Heart Rate Variability SDNN" (limit 1, sorted by newest). Get the sample's Value as Number (without ms).
+Step 4: Format Current Date with Custom Date Format "yyyy-MM-dd".
 Step 5: Create a Dictionary with:
-- "recorded_date": the formatted date string (yyyy-MM-dd)
-- "sleep_hours": the numeric sleep hours
-- "resting_hr": the numeric resting heart rate
-- "hrv_ms": the numeric heart rate variability
+- "recorded_date": formatted date
+- "sleep_hours": Sleep duration in hours
+- "resting_hr": Resting Heart Rate value
+- "hrv_ms": Heart Rate Variability value
 - "athlete_id": "{PIN}"
 Step 6: Get Contents of URL using HTTP POST:
 - URL: "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date"
@@ -751,7 +751,8 @@ Step 6: Get Contents of URL using HTTP POST:
   * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
   * "Prefer": "resolution=merge-duplicates,return=representation"
   * "x-athlete-token": "{PIN}"
-Step 7: Show Notification with title "BioCoach Cloud" and body containing the exact result from Get Contents of URL.</pre>
+Step 7: Show Notification with title "BioCoach Cloud" and body containing the result from Get Contents of URL.
+(Note: Never use Convert Measurement to "m" or meters; treat all health values as numbers or time duration).</pre>
         </div>
 
         <!-- Prompt 2: Fin de Entrenamiento -->
