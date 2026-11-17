@@ -180,6 +180,116 @@ class BioCoachService:
             "watch_feedback": feedback
         }
 
+    def get_dashboard_summary(self, days: int = 7) -> Dict[str, Any]:
+        """Agrega métricas consolidadas para el Dashboard de la WebApp."""
+        history = self._fetch_recent_history(days=days)
+        workouts = self._fetch_recent_workouts(limit=5)
+        today_iso = date.today().isoformat()
+
+        if not history:
+            return {
+                "status": "success",
+                "is_day_one": True,
+                "today": None,
+                "trends": {"dates": [], "hrv": [], "rhr": [], "sleep": []},
+                "recent_workouts": []
+            }
+
+        # Invertir para orden cronológico en gráficas
+        chronological = list(reversed(history))
+        latest = history[0]
+
+        trends = {
+            "dates": [r.get("recorded_date", "") for r in chronological],
+            "hrv": [float(r.get("hrv_ms") or 0.0) for r in chronological],
+            "rhr": [float(r.get("resting_hr") or 0.0) for r in chronological],
+            "sleep": [float(r.get("sleep_hours") or 0.0) for r in chronological]
+        }
+
+        today_data = {
+            "date": latest.get("recorded_date"),
+            "score": latest.get("recovery_score", 50),
+            "traffic_light": "GREEN" if (latest.get("recovery_score") or 0) >= 75 else ("YELLOW" if (latest.get("recovery_score") or 0) >= 50 else "RED"),
+            "hrv": latest.get("hrv_ms"),
+            "rhr": latest.get("resting_hr"),
+            "sleep": latest.get("sleep_hours"),
+            "verdict": latest.get("gemini_verdict", "")
+        }
+
+        return {
+            "status": "success",
+            "is_day_one": False,
+            "today": today_data,
+            "trends": trends,
+            "recent_workouts": [
+                {
+                    "type": w.get("workout_type", "entreno"),
+                    "duration": w.get("duration_minutes", 0),
+                    "calories": w.get("active_calories", 0),
+                    "strain": w.get("active_calories", 0) / 40.0 if w.get("active_calories") else 10.0,
+                    "date": w.get("created_at", "")[:10]
+                }
+                for w in workouts
+            ]
+        }
+
+    def process_coach_chat(self, user_message: str) -> Dict[str, Any]:
+        """Procesa una consulta libre en el chat inyectando el contexto de salud."""
+        if not user_message or not user_message.strip():
+            return {"status": "error", "message": "El mensaje no puede estar vacío."}
+
+        history = self._fetch_recent_history(days=7)
+        profile, sleep_history = self._compute_rolling_baseline(history)
+
+        context_summary = []
+        if history:
+            latest = history[0]
+            context_summary.append(f"- Última recuperación registrada: {latest.get('recovery_score')}% el {latest.get('recorded_date')}")
+            context_summary.append(f"- HRV reciente: {latest.get('hrv_ms')} ms (Media 7 días: {profile.hrv_ms} ms)")
+            context_summary.append(f"- Pulso en reposo: {latest.get('resting_hr')} bpm (Media 7 días: {profile.resting_hr} bpm)")
+            context_summary.append(f"- Último sueño: {latest.get('sleep_hours')}h")
+        else:
+            context_summary.append("- Usuario en día 1 (sin historial previo consolidado).")
+
+        full_prompt = f"""
+Actúa como BioCoach AI, un fisiólogo deportivo y coach de salud personal.
+El usuario te está haciendo una pregunta desde su WebApp móvil.
+
+CONTEXTO CLÍNICO RECIENTE DEL USUARIO:
+{"\n".join(context_summary)}
+
+PREGUNTA DEL USUARIO:
+"{user_message.strip()}"
+
+INSTRUCCIONES:
+Responde de manera empática, científica y accionable. Relaciona tus consejos directamente con sus datos biométricos si es relevante. Mantén la respuesta conversacional y clara.
+"""
+        try:
+            reply = self.orchestrator._call_gemini_api(full_prompt)
+        except Exception:
+            reply = (
+                "Entiendo tu consulta. Basándome en tus métricas recientes, lo más importante hoy es "
+                "mantener un buen balance entre tu recuperación y el esfuerzo físico. "
+                "(Nota: respuesta generada en modo local provisional)."
+            )
+
+        return {
+            "status": "success",
+            "reply": reply.strip()
+        }
+
+    def _fetch_recent_workouts(self, limit: int = 5) -> List[Dict[str, Any]]:
+        """Consulta los últimos entrenamientos registrados."""
+        endpoint = f"{self.supabase_url}/rest/v1/workouts?order=created_at.desc&limit={limit}"
+        headers = self._get_headers()
+        req = urllib.request.Request(endpoint, headers=headers, method="GET")
+
+        try:
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except Exception:
+            return []
+
     # --------------------------------------------------------------------------
     # MÉTODOS AUXILIARES Y ACCESO A SUPABASE (PostgREST)
     # --------------------------------------------------------------------------

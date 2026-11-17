@@ -24,6 +24,10 @@ class BioCoachAPIHandler:
         if method == "GET" and clean_path in ["", "/health", "/api/v1/health"]:
             return 200, {"status": "healthy", "service": "BioCoach AI Gateway", "version": "1.0.0"}
 
+        if method == "GET" and clean_path in ["/api/v1/dashboard", "/dashboard"]:
+            result = self.service.get_dashboard_summary()
+            return 200, result
+
         if method != "POST":
             return 405, {"error": f"Método {method} no permitido."}
 
@@ -31,7 +35,14 @@ class BioCoachAPIHandler:
             return 400, {"error": "El cuerpo de la petición debe ser un objeto JSON válido."}
 
         try:
-            if clean_path in ["/api/v1/recovery", "/recovery"]:
+            if clean_path in ["/api/v1/chat", "/chat"]:
+                msg = body.get("message")
+                if not msg or not str(msg).strip():
+                    raise ValidationError("El campo 'message' es obligatorio y no puede estar vacío.")
+                result = self.service.process_coach_chat(str(msg).strip())
+                return 200, result
+
+            elif clean_path in ["/api/v1/recovery", "/recovery"]:
                 metrics = self.validator.validate_morning_payload(body)
                 result = self.service.process_morning_recovery(metrics)
                 return 200, result
@@ -92,8 +103,33 @@ def create_server(host: str = "0.0.0.0", port: int = 8000, service: Optional[Bio
 
     class CustomServerHandler(BaseHTTPRequestHandler):
         def do_GET(self):
+            # Servir archivos estáticos de la WebApp PWA si la ruta coincide
+            webapp_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "webapp")
+            req_path = self.path.split("?")[0]
+
+            if req_path in ["/", "/index.html"]:
+                target_file = os.path.join(webapp_dir, "index.html")
+                self._serve_file(target_file, "text/html; charset=utf-8")
+                return
+            elif req_path in ["/manifest.json", "/app.js", "/sw.js"]:
+                target_file = os.path.join(webapp_dir, req_path.lstrip("/"))
+                mime = "application/javascript" if req_path.endswith(".js") else "application/json"
+                self._serve_file(target_file, mime)
+                return
+
             status, res = handler_logic.handle_request("GET", self.path, None)
             self._send_json(status, res)
+
+        def _serve_file(self, file_path: str, content_type: str):
+            if os.path.exists(file_path):
+                self.send_response(200)
+                self.send_header("Content-Type", content_type)
+                self.end_headers()
+                with open(file_path, "rb") as f:
+                    self.wfile.write(f.read())
+            else:
+                self.send_response(404)
+                self.end_headers()
 
         def do_POST(self):
             content_len = int(self.headers.get("Content-Length", 0))
