@@ -944,25 +944,16 @@
               📋 Copiar Prompt
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">Automatización al despertar. Sube sueño, fases Deep/REM, FC reposo, VFC, respiración, SpO2 y temperatura (compacto para que Apple Intelligence lo genere sin error).</p>
-          <pre id="prompt-text-recovery" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "BioCoach Vitales":
-Step 1: Format Current Date as "yyyy-MM-dd" (DateString).
-Step 2: Create a Dictionary with "recorded_date": DateString and "athlete_id": "{PIN}".
-Step 3: Find Health samples for "Sleep Analysis" where End Date is in the last 16 hours and Value is NOT "Awake" and Value is NOT "In Bed". Sum Duration in seconds, divide by 3600, round to 2 decimals. If > 0, add to Dictionary as "sleep_hours".
-Step 4: Find Health samples for "Sleep Analysis" where End Date is in the last 16 hours and Value is "Asleep Deep". Sum Duration divided by 3600, round to 2 decimals. If > 0, add to Dictionary as "deep_sleep_hours".
-Step 5: Find Health samples for "Sleep Analysis" where End Date is in the last 16 hours and Value is "Asleep REM". Sum Duration divided by 3600, round to 2 decimals. If > 0, add to Dictionary as "rem_sleep_hours".
-Step 6: Find Health samples for "Resting Heart Rate" where End Date is Today. Get Average as Number. If has value, add as "resting_hr".
-Step 7: Find Health samples for "Heart Rate Variability" where End Date is Today. Get Average as Number. If has value, add as "hrv_ms".
-Step 8: Find Health samples for "Respiratory Rate" where End Date is in the last 16 hours. Get Average as Number. If has value, add as "respiratory_rate".
-Step 9: Find Health samples for "Blood Oxygen" where End Date is Today. Get Average as Number. If has value, add as "spo2_pct".
-Step 10: Find Health samples for "Apple Sleeping Wrist Temperature" where End Date is Today (leave Unit default). Get Average as Number. If has value, add as "wrist_temp_deviation".
-Step 11: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date" with Request Body JSON from the Dictionary and Headers:
-  * "Content-Type": "application/json"
-  * "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
-  * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
-  * "Prefer": "resolution=merge-duplicates,return=representation"
-  * "x-athlete-token": "{PIN}"
-Step 12: Show Notification with title "BioCoach Vitales" and body from URL result.</pre>
+          <p class="text-[10px] text-slate-400">Ultra-corto para Apple Intelligence (sin Ifs ni divisiones; el servidor convierte segundos, °F, % y vacíos automáticamente).</p>
+          <pre id="prompt-text-recovery" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create a shortcut named "BioCoach Vitales":
+1. Find Sleep Analysis samples in the last 16 hours and get total duration.
+2. Find Resting Heart Rate samples from today and get the average.
+3. Find Heart Rate Variability samples from today and get the average.
+4. Find Respiratory Rate samples in the last 16 hours and get the average.
+5. Find Blood Oxygen samples from today and get the average.
+6. Find Apple Sleeping Wrist Temperature samples from today and get the average.
+7. Send a POST JSON request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/rpc/sync_biocoach" with headers "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5" and "Content-Type": "application/json", and JSON keys: "athlete_id" ("{PIN}"), "sleep_hours", "resting_hr", "hrv_ms", "respiratory_rate", "spo2_pct", "wrist_temp_deviation".
+8. Show the response in a notification.</pre>
         </div>
 
         <!-- Prompt 1B (NOCHE): BioCoach Actividad & Marcha (Se fusiona en la misma fila de hoy) -->
@@ -975,26 +966,17 @@ Step 12: Show Notification with title "BioCoach Vitales" and body from URL resul
               📋 Copiar Prompt
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">Automatización a las 9:30 PM. Sube pasos, calorías, ejercicio, distancia, pisos, luz solar, ruido y FC caminando del día completo (se fusiona con tus vitales de la mañana sin borrarlos).</p>
-          <pre id="prompt-text-baseline" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "BioCoach Actividad":
-Step 1: Format Current Date as "yyyy-MM-dd" (DateString).
-Step 2: Create a Dictionary with "recorded_date": DateString and "athlete_id": "{PIN}".
-Step 3: Find Health samples for "Steps" where End Date is Today. Sum and round to whole integer. If > 0, add as "steps".
-Step 4: Find Health samples for "Active Energy" where End Date is Today. Sum and round to whole integer. If > 0, add as "active_calories".
-Step 5: Find Health samples for "Resting Energy" where End Date is Today. Sum and round to whole integer. If > 0, add as "basal_calories".
-Step 6: Find Health samples for "Exercise Minutes" where End Date is Today. Sum and round to whole integer. If > 0, add as "exercise_minutes".
-Step 7: Find Health samples for "Walking + Running Distance" where End Date is Today. Sum in km, round to 2 decimals. If > 0, add as "distance_km".
-Step 8: Find Health samples for "Flights Climbed" where End Date is Today. Sum and round to whole integer. If > 0, add as "flights_climbed".
-Step 9: Find Health samples for "Time in Daylight" where End Date is Today. Sum in minutes, round to whole integer. If > 0, add as "daylight_minutes".
-Step 10: Find Health samples for "Walking Heart Rate Average" where End Date is Today. Get Average as Number. If has value, add as "walking_hr_avg".
-Step 11: Find Health samples for "Environmental Sound Levels" where End Date is Today. Get Average as Number. If has value, add as "audio_exposure_db".
-Step 12: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date" with Request Body JSON from the Dictionary and Headers:
-  * "Content-Type": "application/json"
-  * "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
-  * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
-  * "Prefer": "resolution=merge-duplicates,return=representation"
-  * "x-athlete-token": "{PIN}"
-Step 13: Show Notification with title "BioCoach Actividad" and body from URL result.</pre>
+          <p class="text-[10px] text-slate-400">Automatización a las 9:30 PM. Ultra-corto; se fusiona en la misma fila de hoy sin borrar tus vitales de la mañana.</p>
+          <pre id="prompt-text-baseline" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create a shortcut named "BioCoach Actividad":
+1. Find Steps samples from today and get the sum.
+2. Find Active Energy samples from today and get the sum.
+3. Find Resting Energy samples from today and get the sum.
+4. Find Exercise Minutes samples from today and get the sum.
+5. Find Walking + Running Distance samples from today and get the sum.
+6. Find Time in Daylight samples from today and get the sum.
+7. Find Walking Heart Rate Average samples from today and get the average.
+8. Send a POST JSON request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/rpc/sync_biocoach" with headers "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5" and "Content-Type": "application/json", and JSON keys: "athlete_id" ("{PIN}"), "steps", "active_calories", "basal_calories", "exercise_minutes", "distance_km", "daylight_minutes", "walking_hr_avg".
+9. Show the response in a notification.</pre>
         </div>
 
         <!-- Prompt 2: Fin de Entrenamiento -->
