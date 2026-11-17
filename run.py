@@ -85,7 +85,8 @@ def main():
     # 1. Ensure Apple Shortcut binary files are generated and up to date
     shortcuts_dir = os.path.join(PROJECT_ROOT, "shortcuts", "downloads")
     try:
-        create_all_shortcuts(shortcuts_dir)
+        athlete_pin = env.get("ATHLETE_PIN", "").strip() or None
+        create_all_shortcuts(shortcuts_dir, athlete_token=athlete_pin)
     except Exception as e:
         print(f"⚠️ Advertencia al compilar atajos: {e}")
 

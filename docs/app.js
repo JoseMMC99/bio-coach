@@ -134,12 +134,41 @@ function getAthleteKey() {
 function updateSecretDotUI() {
   const dot = document.getElementById('secret-athlete-dot');
   const athleteKey = getAthleteKey();
+  const pinStatusText = document.getElementById('pin-status-text');
+  const btnExitVault = document.getElementById('btn-exit-vault');
+  const btnSubmitPin = document.getElementById('btn-submit-pin');
+  const shortcutsPinBadge = document.getElementById('shortcuts-pin-badge');
+
   if (dot) {
     if (athleteKey) {
       dot.classList.remove('hidden');
     } else {
       dot.classList.add('hidden');
     }
+  }
+
+  if (shortcutsPinBadge) {
+    shortcutsPinBadge.textContent = athleteKey || 'atleta_privado';
+  }
+
+  if (pinStatusText) {
+    if (athleteKey) {
+      pinStatusText.innerHTML = `🟢 Bóveda Activa (<span class="font-mono text-cyan-300">${athleteKey}</span>)`;
+    } else {
+      pinStatusText.innerHTML = '✨ Modo Demo Público';
+    }
+  }
+
+  if (btnExitVault) {
+    if (athleteKey) {
+      btnExitVault.classList.remove('hidden');
+    } else {
+      btnExitVault.classList.add('hidden');
+    }
+  }
+
+  if (btnSubmitPin) {
+    btnSubmitPin.textContent = athleteKey ? '💾 Actualizar PIN de Atleta' : '💾 Guardar PIN y Desbloquear';
   }
 }
 
@@ -150,6 +179,8 @@ function initDiscreetVaultAccess() {
   const modal = document.getElementById('secret-pin-modal');
   const btnClose = document.getElementById('btn-close-pin-modal');
   const btnCancel = document.getElementById('btn-cancel-pin');
+  const btnExitVault = document.getElementById('btn-exit-vault');
+  const btnToggleVisibility = document.getElementById('btn-toggle-pin-visibility');
   const form = document.getElementById('pin-form');
   const inputPin = document.getElementById('input-secret-pin');
 
@@ -173,11 +204,14 @@ function initDiscreetVaultAccess() {
 
   function openPinModal() {
     if (!modal) return;
-    modal.classList.remove('hidden');
+    updateSecretDotUI();
+    const currentKey = getAthleteKey();
     if (inputPin) {
-      inputPin.value = '';
+      inputPin.value = currentKey || '';
+      inputPin.type = 'password';
       inputPin.focus();
     }
+    modal.classList.remove('hidden');
   }
 
   function closePinModal() {
@@ -187,6 +221,30 @@ function initDiscreetVaultAccess() {
 
   if (logoTrigger) logoTrigger.addEventListener('click', registerTap);
   if (titleTrigger) titleTrigger.addEventListener('click', registerTap);
+
+  // Toggle password visibility in modal
+  if (btnToggleVisibility && inputPin) {
+    btnToggleVisibility.addEventListener('click', () => {
+      if (inputPin.type === 'password') {
+        inputPin.type = 'text';
+        btnToggleVisibility.textContent = '🙈';
+      } else {
+        inputPin.type = 'password';
+        btnToggleVisibility.textContent = '👁️';
+      }
+    });
+  }
+
+  // Button to exit vault and return to portfolio demo mode
+  if (btnExitVault) {
+    btnExitVault.addEventListener('click', () => {
+      localStorage.removeItem('BIOCOACH_ATHLETE_KEY');
+      closePinModal();
+      updateSecretDotUI();
+      initDashboard();
+      alert('Sesión privada cerrada. Has vuelto al modo demostración público.');
+    });
+  }
 
   // Clicking the subtle green dot allows locking/exiting session back to public demo
   if (secretDot) {

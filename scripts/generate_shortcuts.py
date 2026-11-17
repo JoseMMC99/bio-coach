@@ -18,7 +18,8 @@ def generate_shortcut_plist(
     color: int,
     endpoint: str,
     sample_types: Optional[List[str]] = None,
-    supabase_table: Optional[str] = None
+    supabase_table: Optional[str] = None,
+    athlete_token: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Builds the dictionary representation of an Apple Shortcut workflow plist.
@@ -30,11 +31,18 @@ def generate_shortcut_plist(
         endpoint: BioCoach API path (e.g. /api/v1/recovery).
         sample_types: HealthKit metrics captured by this shortcut.
         supabase_table: Target Supabase table for autonomous 24/7 cloud logging.
+        athlete_token: Custom secret PIN / identifier isolating athlete telemetry.
     
     Returns:
         Dictionary conforming to Apple Workflow specification.
     """
     actions = []
+
+    # Resolve athlete isolation token (defaults to ATHLETE_PIN environment variable or 'atleta_privado')
+    resolved_athlete_token = (
+        athlete_token
+        or os.getenv("ATHLETE_PIN", "atleta_privado")
+    ).strip() or "atleta_privado"
 
     # 1. HealthKit query actions if applicable
     if sample_types:
@@ -70,7 +78,7 @@ def generate_shortcut_plist(
         http_headers["apikey"] = DEFAULT_SUPABASE_KEY
         http_headers["Authorization"] = f"Bearer {DEFAULT_SUPABASE_KEY}"
         http_headers["Prefer"] = "return=representation"
-        http_headers["x-athlete-token"] = "atleta_privado"
+        http_headers["x-athlete-token"] = resolved_athlete_token
 
     actions.append({
         "WFWorkflowActionIdentifier": "is.workflow.actions.downloadurl",
@@ -112,7 +120,7 @@ def generate_shortcut_plist(
     return shortcut_dict
 
 
-def create_all_shortcuts(output_dir: str) -> List[str]:
+def create_all_shortcuts(output_dir: str, athlete_token: Optional[str] = None) -> List[str]:
     """
     Generates the four core BioCoach shortcuts into the specified directory as binary plists.
     Also creates a consolidated ZIP archive for 1-click batch download.
@@ -166,7 +174,8 @@ def create_all_shortcuts(output_dir: str) -> List[str]:
             color=spec["color"],
             endpoint=spec["endpoint"],
             sample_types=spec["sample_types"],
-            supabase_table=spec.get("supabase_table")
+            supabase_table=spec.get("supabase_table"),
+            athlete_token=athlete_token
         )
         file_path = os.path.join(output_dir, spec["filename"])
         with open(file_path, "wb") as f:

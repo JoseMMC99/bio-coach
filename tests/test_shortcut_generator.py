@@ -25,6 +25,26 @@ class TestShortcutGenerator(unittest.TestCase):
         self.assertEqual(plist_data["WFWorkflowIcon"]["WFWorkflowIconGlyphNumber"], 59511)
         self.assertGreaterEqual(len(plist_data["WFWorkflowActions"]), 3)
 
+    def test_generate_shortcut_with_custom_athlete_token(self):
+        """Generates a shortcut with custom athlete PIN/token embedded in HTTP headers."""
+        custom_pin = "custom_secret_pin_1999"
+        plist_data = generate_shortcut_plist(
+            name="Recuperación Matutina",
+            glyph=59511,
+            color=431817727,
+            endpoint="/api/v1/recovery",
+            supabase_table="daily_recovery",
+            athlete_token=custom_pin
+        )
+
+        # Find the downloadurl action with HTTP headers
+        download_action = next(
+            a for a in plist_data["WFWorkflowActions"]
+            if a.get("WFWorkflowActionIdentifier") == "is.workflow.actions.downloadurl"
+        )
+        headers = download_action["WFWorkflowActionParameters"]["WFHTTPHeaders"]
+        self.assertEqual(headers.get("x-athlete-token"), custom_pin)
+
     def test_create_all_shortcuts_outputs_valid_files(self):
         """Generates all 4 binary .shortcut files and confirms they parse with plistlib."""
         output_dir = os.path.join(os.path.dirname(__file__), "..", "shortcuts", "downloads")
