@@ -10,7 +10,7 @@ const SUPABASE_CONFIG = {
 // Built-in Gemini API Key (stored in localStorage if user updates it)
 const DEFAULT_GEMINI_KEY = atob("QVEuQWI4Uk42TE1aT3YxVVVNYWJxa0ZXQVBHSWlSa05jbkVqbVI3azd5dVRsTFNWMmVfcHc=");
 
-// Global State
+// Global State (zero fake defaults; populated dynamically from localStorage + Supabase)
 window.currentNutritionState = {
   weight: 75,
   height: 175,
@@ -18,11 +18,11 @@ window.currentNutritionState = {
   gender: 'male',
   activity: 'moderate',
   goal: 'maintain',
-  bmr: 1720,
-  tdee: 2666,
-  targetKcal: 2666,
-  consumedToday: 1850,
-  macros: { protein: 154, carbs: 320, fat: 62 }
+  bmr: 0,
+  tdee: 0,
+  targetKcal: 0,
+  consumedToday: 0,
+  macros: { protein: 0, carbs: 0, fat: 0 }
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -38,10 +38,12 @@ document.addEventListener('DOMContentLoaded', () => {
   initShortcutsModal();
 });
 
-// 1. PWA Service Worker Registration
+// 1. PWA Service Worker Registration (Auto-updates immediately when new deployment lands)
 function initServiceWorker() {
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then((reg) => {
+      reg.update().catch(() => {});
+    }).catch(() => {});
   }
 }
 
@@ -567,10 +569,10 @@ async function fetchDirectFromSupabase(athleteKey) {
     : `${SUPABASE_CONFIG.url}/rest/v1/nutrition_logs?is_demo=eq.true&order=created_at.desc&limit=50`;
 
   const [recRes, wkRes, hrRes, nutrRes] = await Promise.all([
-    fetch(recUrl, { headers }),
-    fetch(wkUrl, { headers }),
-    fetch(hrUrl, { headers }).catch(() => ({ ok: false })),
-    fetch(nutrUrl, { headers }).catch(() => ({ ok: false }))
+    fetch(recUrl, { headers, cache: 'no-store' }),
+    fetch(wkUrl, { headers, cache: 'no-store' }),
+    fetch(hrUrl, { headers, cache: 'no-store' }).catch(() => ({ ok: false })),
+    fetch(nutrUrl, { headers, cache: 'no-store' }).catch(() => ({ ok: false }))
   ]);
 
   if (!recRes.ok) throw new Error("Error querying Supabase daily_recovery");
@@ -2452,15 +2454,19 @@ function initManualSync() {
 
   const openModal = () => {
     if (!modal) return;
-    // Pre-populate with current dashboard data or physiological baseline so inputs are never empty
+    // Always sync inputs with current live telemetry so hardcoded placeholders never overwrite real data
     const current = window.currentDashboardData?.today;
     const sleepInput = document.getElementById('input-sleep');
     const hrvInput = document.getElementById('input-hrv');
     const rhrInput = document.getElementById('input-rhr');
+    const deepInput = document.getElementById('input-deep');
+    const remInput = document.getElementById('input-rem');
 
-    if (sleepInput && !sleepInput.value) sleepInput.value = current?.sleep ? Number(current.sleep).toFixed(1) : "7.8";
-    if (hrvInput && !hrvInput.value) hrvInput.value = current?.hrv ? Math.round(current.hrv) : "64";
-    if (rhrInput && !rhrInput.value) rhrInput.value = current?.rhr ? Math.round(current.rhr) : "52";
+    if (sleepInput && current?.sleep != null) sleepInput.value = Number(current.sleep).toFixed(2);
+    if (hrvInput && current?.hrv != null) hrvInput.value = Math.round(current.hrv);
+    if (rhrInput && current?.rhr != null) rhrInput.value = Math.round(current.rhr);
+    if (deepInput && current?.deep_sleep != null) deepInput.value = Number(current.deep_sleep).toFixed(2);
+    if (remInput && current?.rem_sleep != null) remInput.value = Number(current.rem_sleep).toFixed(2);
 
     modal.classList.remove('hidden');
   };

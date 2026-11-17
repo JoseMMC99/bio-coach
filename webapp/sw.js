@@ -1,10 +1,10 @@
-// Service Worker for BioCoach PWA
-const CACHE_NAME = 'biocoach-v1';
+// Service Worker for BioCoach PWA (Network-First for fresh telemetry & instant updates)
+const CACHE_NAME = 'biocoach-v3';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/app.js',
-  '/manifest.json'
+  './',
+  './index.html',
+  './app.js',
+  './manifest.json'
 ];
 
 self.addEventListener('install', (event) => {
@@ -28,16 +28,26 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // API requests always bypass cache and go to network
-  if (event.request.url.includes('/api/')) {
-    event.respondWith(fetch(event.request));
+  const req = event.request;
+  if (req.method !== 'GET') return;
+
+  const url = new URL(req.url);
+
+  // Never intercept or cache external APIs (Supabase, Gemini, CDNs) or local /api/
+  if (url.origin !== self.location.origin || url.pathname.includes('/api/')) {
     return;
   }
 
-  // Static assets use Cache-First strategy with Network Fallback
+  // Network-First with Cache Fallback so iPhone/Safari ALWAYS gets the latest deployed app
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      return cachedResponse || fetch(event.request);
-    })
+    fetch(req, { cache: 'no-cache' })
+      .then((networkRes) => {
+        if (networkRes && networkRes.status === 200) {
+          const clone = networkRes.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone)).catch(() => {});
+        }
+        return networkRes;
+      })
+      .catch(() => caches.match(req))
   );
 });
