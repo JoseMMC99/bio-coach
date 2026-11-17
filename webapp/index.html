@@ -1009,7 +1009,7 @@
 9. Show the response in a notification.</pre>
         </div>
 
-        <!-- Prompt 2: Fin de Entrenamiento -->
+        <!-- Prompt 2: Fin de Entrenamiento (Ultra-corto vía RPC sync_workout) -->
         <div class="glass-card p-4 rounded-2xl border border-white/10 space-y-2.5">
           <div class="flex items-center justify-between">
             <h3 class="text-xs font-black text-white flex items-center gap-2">
@@ -1019,29 +1019,16 @@
               📋 Copiar Prompt
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">Registra tu último entreno con duración en minutos, calorías enteras y pulso promedio/máximo real de esa sesión.</p>
-          <pre id="prompt-text-workout" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "Fin de Entrenamiento":
-Step 1: Find Health samples for "Workouts" sorted by End Date (Latest First), limit 1 (store as LatestWorkout).
-Step 2: Create a Dictionary with initial keys:
-  * "workout_type": Activity Type of LatestWorkout as Text (default "entrenamiento" if empty)
-  * "athlete_id": "{PIN}"
-Step 3 (Duration in Minutes): Get Duration of LatestWorkout in seconds, divide by 60 (or set unit to Minutes) and round to 2 decimals. If > 0, Set Dictionary Value for key "duration_minutes".
-Step 4 (Active Calories - MUST be whole integer): Get Active Energy / Calories Burned of LatestWorkout, Round to Ones Place (integer, no decimals). If > 0, Set Dictionary Value for key "active_calories".
-Step 5 (Workout Heart Rate - MUST be whole integers): Find Health samples for "Heart Rate" where Start Date is between Start Date of LatestWorkout and End Date of LatestWorkout.
-  * Calculate Statistics: Average, Round to Ones Place (integer). If > 0, Set Dictionary Value for key "avg_hr".
-  * Calculate Statistics: Maximum, Round to Ones Place (integer). If > 0, Set Dictionary Value for key "max_hr".
-Step 6: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/workouts":
-- Request Body: JSON with the Dictionary
-- Headers:
-  * "Content-Type": "application/json"
-  * "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
-  * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
-  * "Prefer": "return=representation"
-  * "x-athlete-token": "{PIN}"
-Step 7: Show Notification with title "BioCoach Entreno" and body containing the result from URL request.</pre>
+          <p class="text-[10px] text-slate-400">Ultra-corto para Apple Intelligence; el servidor limpia segundos→min, calorías y pulso automáticamente.</p>
+          <pre id="prompt-text-workout" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create a shortcut named "Fin de Entrenamiento":
+1. Find the latest Workout sample from today.
+2. Get its Activity Type, Duration, and Active Energy.
+3. Find Heart Rate samples during that workout and get the average and maximum.
+4. Send a POST JSON request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/rpc/sync_workout" with headers "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5" and "Content-Type": "application/json", and JSON keys: "athlete_id" ("{PIN}"), "workout_type", "duration_minutes", "active_calories", "avg_hr", "max_hr".
+5. Show the response in a notification.</pre>
         </div>
 
-        <!-- Prompt 3: Check Cardíaco -->
+        <!-- Prompt 3: Check Cardíaco (Ultra-corto vía RPC sync_hr_checkin) -->
         <div class="glass-card p-4 rounded-2xl border border-white/10 space-y-2.5">
           <div class="flex items-center justify-between">
             <h3 class="text-xs font-black text-white flex items-center gap-2">
@@ -1051,54 +1038,30 @@ Step 7: Show Notification with title "BioCoach Entreno" and body containing the 
               📋 Copiar Prompt
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">Captura tu pulso actual (entero exacto) y sensación del momento para registrar picos de estrés o palpitaciones.</p>
-          <pre id="prompt-text-hr" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "Check Cardíaco":
-Step 1: Find latest Health sample for "Heart Rate" (sorted by End Date, Latest First, limit 1). Get Value as Number and Round to Ones Place (MUST be a whole integer, no decimals).
-Step 2: Choose from Menu with prompt "¿Cómo te sientes?" and options: "rutina", "estrés", "palpitaciones", "ansiedad", "post-café" (store selected text as Sensation).
-Step 3: Create a Dictionary with ONLY these exact keys:
-  * "current_hr": rounded integer Heart Rate
-  * "user_sensation": Sensation
-  * "athlete_id": "{PIN}"
-Step 4: Send an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/hr_checkins":
-- Request Body: JSON with the Dictionary
-- Headers:
-  * "Content-Type": "application/json"
-  * "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
-  * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
-  * "Prefer": "return=representation"
-  * "x-athlete-token": "{PIN}"
-Step 5: Show Notification with title "BioCoach Pulso" and body containing the result from URL request.</pre>
+          <p class="text-[10px] text-slate-400">Captura tu pulso actual y sensación del momento para registrar picos de estrés o palpitaciones.</p>
+          <pre id="prompt-text-hr" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create a shortcut named "Check Cardíaco":
+1. Find the latest Heart Rate sample from today.
+2. Ask to choose from a list: "rutina", "estrés", "palpitaciones", "ansiedad", "post-café".
+3. Send a POST JSON request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/rpc/sync_hr_checkin" with headers "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5" and "Content-Type": "application/json", and JSON keys: "athlete_id" ("{PIN}"), "current_hr", "user_sensation".
+4. Show the response in a notification.</pre>
         </div>
 
-        <!-- Prompt 4: Registro de Nutrición por Voz -->
+        <!-- Prompt 4: BioCoach Comida por Voz (Ultra-corto vía RPC sync_nutrition) -->
         <div class="glass-card p-4 rounded-2xl border border-white/10 space-y-2.5">
           <div class="flex items-center justify-between">
             <h3 class="text-xs font-black text-white flex items-center gap-2">
-              <span>🎙️</span> 04. Registro de Nutrición por Voz
+              <span>🎙️</span> 04. BioCoach Comida (Voz)
             </h3>
             <button type="button" class="btn-copy-prompt text-[10px] px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black shadow-md shadow-emerald-500/20 transition-all active:scale-95" data-target="prompt-text-meal">
               📋 Copiar Prompt
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">Dicta tu comida por voz o texto; BioCoach + Gemini estiman automáticamente calorías y macros en tu fecha local.</p>
-          <pre id="prompt-text-meal" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "Registro de Nutrición por Voz":
-Step 1: Choose from List with options: "desayuno", "almuerzo", "cena", "snack" (store as MealType).
-Step 2: Dictate Text (or Ask for Text Input) with prompt "¿Qué comiste?" (store as MealText).
-Step 3: Format Current Date as "yyyy-MM-dd" (store as LocalDate).
-Step 4: Create a Dictionary with:
-  * "logged_date": LocalDate
-  * "meal_type": MealType
-  * "raw_text": MealText
-  * "athlete_id": "{PIN}"
-Step 5: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/nutrition_logs":
-- Request Body: JSON with the Dictionary
-- Headers:
-  * "Content-Type": "application/json"
-  * "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
-  * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
-  * "Prefer": "return=representation"
-  * "x-athlete-token": "{PIN}"
-Step 6: Show Notification with title "BioCoach Nutrición" and body containing the result from URL request.</pre>
+          <p class="text-[10px] text-slate-400">Dicta tu comida por voz; guarda en fecha de Colombia y BioCoach + Gemini estiman calorías y macros automáticamente.</p>
+          <pre id="prompt-text-meal" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create a shortcut named "BioCoach Comida":
+1. Ask to choose from a list: "desayuno", "almuerzo", "cena", "snack".
+2. Dictate text asking "¿Qué comiste?".
+3. Send a POST JSON request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/rpc/sync_nutrition" with headers "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5" and "Content-Type": "application/json", and JSON keys: "athlete_id" ("{PIN}"), "meal_type", "raw_text".
+4. Show the response in a notification.</pre>
         </div>
 
       </div>
