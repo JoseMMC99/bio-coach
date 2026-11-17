@@ -608,9 +608,12 @@ function processBiometricHistory(history, workouts) {
       respiratory_rate: latest.respiratory_rate,
       wrist_temp_deviation: latestTempC,
       daylight_minutes: latest.daylight_minutes,
+      base_hrv: baseHrv,
+      base_rhr: baseRhr,
       base_resp: baseResp,
       base_temp: baseTemp,
       history_days: history.length,
+      has_saved_gemini_verdict: Boolean(latest.gemini_verdict),
       verdict: autoVerdict,
       pillars: todayPillars.pillars,
       worst_aspect: todayPillars.worstAspect
@@ -769,6 +772,12 @@ function renderDashboard(data) {
 
   if (today.verdict) {
     document.getElementById('gemini-daily-verdict').textContent = `"${today.verdict}"`;
+  }
+
+  // Trigger real Gemini AI daily clinical briefing if today's row has no saved Gemini verdict yet
+  if (!today.has_saved_gemini_verdict && today.date && window.__lastGeminiBriefingDate !== today.date) {
+    window.__lastGeminiBriefingDate = today.date;
+    fetchAndSaveDailyGeminiVerdict(today);
   }
 
   // Update 3 Pillar Summary Cards
@@ -1344,6 +1353,62 @@ async function queryGeminiDirectly(userQuestion, apiKey) {
   if (!res.ok) throw new Error("Gemini API error " + res.status);
   const data = await res.json();
   return data.candidates[0].content.parts[0].text;
+}
+
+// Automatically generates a real daily Gemini clinical briefing ("Hay que ponerle cuidado a X o Y")
+// comparing today's Apple Watch metrics against the 30-day Typical Range, and persists it to Supabase.
+async function fetchAndSaveDailyGeminiVerdict(t) {
+  try {
+    const apiKey = localStorage.getItem('BIOCOACH_GEMINI_KEY') || DEFAULT_GEMINI_KEY;
+    if (!apiKey) return;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${apiKey}`;
+    const prompt = `Actúa como BioCoach AI (fisiólogo deportivo y médico preventivo). Analiza las métricas REALES de hoy (${t.date}) comparadas contra el rango típico de los últimos ${t.history_days || 30} días del atleta:
+- Sueño Total: ${t.sleep ?? '--'}h (Profundo: ${t.deep_sleep ?? '--'}h, REM: ${t.rem_sleep ?? '--'}h)
+- FC Reposo: ${t.rhr ?? '--'} lpm (media 30d: ${t.base_rhr != null ? t.base_rhr.toFixed(1) : '--'} lpm)
+- HRV (VFC): ${t.hrv ?? '--'} ms (media 30d: ${t.base_hrv != null ? t.base_hrv.toFixed(1) : '--'} ms)
+- Frecuencia Respiratoria: ${t.respiratory_rate ?? '--'} rpm (media 30d: ${t.base_resp != null ? t.base_resp.toFixed(1) : '--'} rpm)
+- Temperatura de Muñeca: ${t.wrist_temp_deviation ?? '--'}°C (media 30d: ${t.base_temp != null ? t.base_temp.toFixed(2) : '--'}°C)
+- Luz Solar: ${t.daylight_minutes ?? '--'} min
+
+Responde en ESPAÑOL en máximo 2 frases directas y claras (sin saludos, sin markdown, máximo 240 caracteres). Empieza con el ícono de semáforo (🟢, 🟡 o 🔴) e indica concretamente a qué hay que ponerle cuidado hoy (por ejemplo: déficit de sueño profundo, posible inicio de gripa si subió temperatura/respiración, o luz verde si todo está en rango típico) y 1 acción práctica para hoy.`;
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const verdictText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    if (!verdictText) return;
+
+    const verdictEl = document.getElementById('gemini-daily-verdict');
+    if (verdictEl) verdictEl.textContent = `"${verdictText}"`;
+
+    // Persist today's Gemini verdict in Supabase so it is cached for the rest of the day
+    const athleteKey = getActiveAthleteKey();
+    if (athleteKey) {
+      await fetch(
+        `${SUPABASE_CONFIG.url}/rest/v1/daily_recovery?recorded_date=eq.${encodeURIComponent(t.date)}&athlete_id=eq.${encodeURIComponent(athleteKey)}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_CONFIG.publishableKey,
+            'Authorization': `Bearer ${SUPABASE_CONFIG.publishableKey}`,
+            'x-athlete-token': athleteKey
+          },
+          body: JSON.stringify({
+            gemini_verdict: verdictText,
+            recovery_score: t.score
+          })
+        }
+      );
+    }
+  } catch (err) {
+    console.warn("Auto Gemini daily briefing skipped:", err);
+  }
 }
 
 // 13. Smart Automatic Telemetry Synchronization

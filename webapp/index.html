@@ -720,69 +720,30 @@
           </p>
         </div>
 
-        <!-- Prompt 0: Sincronización Inicial (Historial 7 Días - Registro Diario) -->
-        <div class="glass-card p-4 rounded-2xl border border-white/10 space-y-2.5">
+        <!-- Prompt 1 (PRINCIPAL): Recuperación Matutina (Diario - 100% Calibrado con tu Apple Watch) -->
+        <div class="glass-card p-4 rounded-2xl border border-cyan-500/40 bg-cyan-500/5 space-y-2.5">
           <div class="flex items-center justify-between">
             <h3 class="text-xs font-black text-cyan-400 flex items-center gap-2">
-              <span>🌟</span> 00. Sincronización Inicial (Historial 30 Días)
-            </h3>
-            <button type="button" class="btn-copy-prompt text-[10px] px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black shadow-md shadow-cyan-500/20 transition-all active:scale-95" data-target="prompt-text-baseline">
-              📋 Copiar Prompt
-            </button>
-          </div>
-          <p class="text-[10px] text-slate-400">Recorre los últimos 30 días y sube 30 filas reales para calibrar tu rango "Typical" (sueño, fases, FC, HRV, respiración, temperatura y luz).</p>
-          <pre id="prompt-text-baseline" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "Sincronizar Historial 30 Días":
-Step 1: Add a Repeat block set to 30 times:
-  * Calculate: 30 minus (Repeat Index) -> store as DaysAgo (goes from 29 down to 0 = Today).
-  * Adjust Date: Subtract (DaysAgo) days from Current Date -> store as TargetDate.
-  * Format TargetDate as "yyyy-MM-dd" -> store as DateString.
-  * Create a Dictionary with initial keys:
-    - "recorded_date": DateString
-    - "athlete_id": "{PIN}"
-  * Find Health samples for "Sleep Analysis" where End Date is on TargetDate AND Value is NOT "In Bed" AND Value is NOT "Awake". Calculate Sum of Duration in seconds, divide by 3600 (or set unit to Hours) and round to 2 decimals. If it has any value, Set Dictionary Value for key "sleep_hours".
-  * Find Health samples for "Sleep Analysis" where End Date is on TargetDate AND Value is "Asleep Deep". Sum Duration in Hours (divide seconds by 3600, round to 2 decimals). If it has any value, Set Dictionary Value for key "deep_sleep_hours".
-  * Find Health samples for "Sleep Analysis" where End Date is on TargetDate AND Value is "Asleep REM". Sum Duration in Hours (divide seconds by 3600, round to 2 decimals). If it has any value, Set Dictionary Value for key "rem_sleep_hours".
-  * Find Health samples for "Resting Heart Rate" where End Date is on TargetDate. Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "resting_hr".
-  * Find Health samples for "Heart Rate Variability SDNN" where End Date is on TargetDate. Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "hrv_ms".
-  * Find Health samples for "Respiratory Rate" where End Date is on TargetDate. Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "respiratory_rate".
-  * Find Health samples for "Apple Sleeping Wrist Temperature" where End Date is on TargetDate (IMPORTANT: leave Unit empty/default on the Health action, do NOT set a Unit filter and do NOT convert units — BioCoach converts F to C automatically). Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "wrist_temp_deviation".
-  * Find Health samples for "Time in Daylight" where End Date is on TargetDate. Sum Duration in Minutes and Round to Ones Place (whole integer, no decimals). If it has any value, Set Dictionary Value for key "daylight_minutes".
-  * IMPORTANT - Inside the Repeat block (before End Repeat): Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date":
-    - Request Body: JSON with the Dictionary of this day
-    - Headers:
-      * "Content-Type": "application/json"
-      * "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
-      * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
-      * "Prefer": "resolution=merge-duplicates,return=representation"
-      * "x-athlete-token": "{PIN}"
-End Repeat.
-Step 2: Show Notification with title "BioCoach Historial 30D" and body "30 días completos sincronizados con éxito."</pre>
-        </div>
-
-        <!-- Prompt 1: Recuperación Matutina (Ciclo Circadiano de 24h al Despertar) -->
-        <div class="glass-card p-4 rounded-2xl border border-white/10 space-y-2.5">
-          <div class="flex items-center justify-between">
-            <h3 class="text-xs font-black text-white flex items-center gap-2">
-              <span>☀️</span> 01. Recuperación Matutina (Al Despertar)
+              <span>☀️</span> 01. Recuperación Matutina (Diario al Despertar)
             </h3>
             <button type="button" class="btn-copy-prompt text-[10px] px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black shadow-md shadow-cyan-500/20 transition-all active:scale-95" data-target="prompt-text-recovery">
               📋 Copiar Prompt
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">Automatización diaria al apagar el modo sueño: captura TODAS tus métricas de las últimas 24h (incluye respiración y temperatura para alerta de gripa).</p>
+          <p class="text-[10px] text-slate-400">Automatización diaria al apagar el Modo Sueño. Usa <code class="text-cyan-300">End Date is Today</code> en todas las métricas para capturar sueño total, profundo, REM, FC, VFC, respiración, temperatura y luz solar sin desfases de medianoche.</p>
           <pre id="prompt-text-recovery" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "Recuperación Matutina":
-Step 1: Format Current Date as "yyyy-MM-dd" (DateString).
+Step 1: Format Current Date as "yyyy-MM-dd" (store as DateString).
 Step 2: Create a Dictionary with initial keys:
   * "recorded_date": DateString
   * "athlete_id": "{PIN}"
-Step 3: Find Health samples for "Sleep Analysis" where End Date is in the last 24 hours AND Value is NOT "In Bed" AND Value is NOT "Awake". Calculate Sum of Duration in seconds, divide by 3600 (or set unit to Hours) and round to 2 decimals (result MUST be in hours between 0.0 and 24.0). If it has any value, Set Dictionary Value for key "sleep_hours".
-Step 4: Find Health samples for "Sleep Analysis" where End Date is in the last 24 hours AND Value is "Asleep Deep". Sum Duration in Hours (divide seconds by 3600, round to 2 decimals). If it has any value, Set Dictionary Value for key "deep_sleep_hours".
-Step 5: Find Health samples for "Sleep Analysis" where End Date is in the last 24 hours AND Value is "Asleep REM". Sum Duration in Hours (divide seconds by 3600, round to 2 decimals). If it has any value, Set Dictionary Value for key "rem_sleep_hours".
-Step 6: Find Health samples for "Resting Heart Rate" where End Date is in the last 24 hours. Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "resting_hr".
-Step 7: Find Health samples for "Heart Rate Variability SDNN" where End Date is in the last 24 hours. Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "hrv_ms".
-Step 8: Find Health samples for "Respiratory Rate" where End Date is in the last 24 hours. Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "respiratory_rate".
-Step 9: Find Health samples for "Apple Sleeping Wrist Temperature" where End Date is in the last 24 hours (IMPORTANT: leave Unit empty/default on the Health action, do NOT set a Unit filter and do NOT convert units — BioCoach converts F to C automatically). Calculate Statistics: Average (NEVER Sum) as Number. If it has any value, Set Dictionary Value for key "wrist_temp_deviation".
-Step 10: Find Health samples for "Time in Daylight" where End Date is in the last 24 hours. Sum Duration in Minutes and Round to Ones Place (whole integer). If it has any value, Set Dictionary Value for key "daylight_minutes".
+Step 3 (Total Sleep Hours): Find Health samples for "Sleep Analysis" where End Date is Today AND Value is NOT "Awake" AND Value is NOT "In Bed". Get Duration of samples, calculate Sum in seconds, divide by 3600 (or set unit to Hours) and round to 2 decimals. If it has any value and is greater than 0, Set Dictionary Value for key "sleep_hours".
+Step 4 (Deep Sleep Hours): Find Health samples for "Sleep Analysis" where End Date is Today AND Value is "Asleep Deep". Calculate Sum of Duration divided by 3600, round to 2 decimals. If it has any value and is greater than 0, Set Dictionary Value for key "deep_sleep_hours".
+Step 5 (REM Sleep Hours): Find Health samples for "Sleep Analysis" where End Date is Today AND Value is "Asleep REM". Calculate Sum of Duration divided by 3600, round to 2 decimals. If it has any value and is greater than 0, Set Dictionary Value for key "rem_sleep_hours".
+Step 6 (Resting Heart Rate): Find Health samples for "Resting Heart Rate" where End Date is Today. Calculate Statistics: Average as Number. If it has any value, Set Dictionary Value for key "resting_hr".
+Step 7 (HRV SDNN): Find Health samples for "Heart Rate Variability SDNN" where End Date is Today. Calculate Statistics: Average as Number. If it has any value, Set Dictionary Value for key "hrv_ms".
+Step 8 (Respiratory Rate): Find Health samples for "Respiratory Rate" where End Date is Today. Calculate Statistics: Average as Number. If it has any value, Set Dictionary Value for key "respiratory_rate".
+Step 9 (Sleeping Wrist Temperature): Find Health samples for "Apple Sleeping Wrist Temperature" where End Date is Today (CRITICAL: leave Unit blank/default on the Health action — do NOT pick count/% and do NOT convert units, BioCoach converts automatically). Calculate Statistics: Average as Number. If it has any value, Set Dictionary Value for key "wrist_temp_deviation".
+Step 10 (Time in Daylight): Find Health samples for "Time in Daylight" where End Date is Today. Calculate Sum of Duration in Minutes and Round to Ones Place (integer). If it has any value and is greater than 0, Set Dictionary Value for key "daylight_minutes".
 Step 11: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date":
 - Request Body: JSON with the Dictionary
 - Headers:
@@ -792,6 +753,20 @@ Step 11: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/
   * "Prefer": "resolution=merge-duplicates,return=representation"
   * "x-athlete-token": "{PIN}"
 Step 12: Show Notification with title "BioCoach Matutino" and body containing result from URL request.</pre>
+        </div>
+
+        <!-- Prompt 00 (Opcional): Recuperación Manual de Ayer (solo si un día no corrió la automatización) -->
+        <div class="glass-card p-4 rounded-2xl border border-white/10 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-black text-slate-300 flex items-center gap-2">
+              <span>⏪</span> 00. Sincronizar Ayer (Respaldo 1 día)
+            </h3>
+            <button type="button" class="btn-copy-prompt text-[10px] px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-black transition-all active:scale-95" data-target="prompt-text-baseline">
+              📋 Copiar Prompt
+            </button>
+          </div>
+          <p class="text-[10px] text-slate-400">Opcional: úsalo solo si un día olvidaste correr el atajo matutino y quieres subir los datos de ayer.</p>
+          <pre id="prompt-text-baseline" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Duplicate the "Recuperación Matutina" shortcut, name it "Sincronizar Ayer", and change every date filter from "Today" to "Yesterday" (Adjust Date: Subtract 1 day from Current Date -> format as "yyyy-MM-dd" for recorded_date, and filter End Date is Yesterday for all Health queries). Keep athlete_id and x-athlete-token as "{PIN}".</pre>
         </div>
 
         <!-- Prompt 2: Fin de Entrenamiento -->
