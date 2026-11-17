@@ -262,26 +262,26 @@
           <section class="glass-card rounded-3xl p-6">
             <h2 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Los 3 Pilares Biométricos</h2>
             
-            <div class="grid grid-cols-3 gap-3">
+            <div class="grid grid-cols-3 gap-2 sm:gap-3">
               <!-- Pillar 1: HRV -->
-              <div class="p-3.5 rounded-2xl bg-slate-900/70 border border-cyan-500/20 text-center">
-                <span class="text-[10px] font-bold text-cyan-400 uppercase tracking-wider">VFC (HRV)</span>
-                <p id="card-hrv" class="text-xl sm:text-2xl font-black text-white mt-1">-- <span class="text-xs font-normal text-slate-400">ms</span></p>
-                <span class="text-[10px] text-slate-400 font-semibold" id="card-hrv-sub">--</span>
+              <div class="p-2.5 sm:p-3.5 rounded-2xl bg-slate-900/70 border border-cyan-500/20 text-center min-w-0 overflow-hidden">
+                <span class="text-[9px] sm:text-[10px] font-bold text-cyan-400 uppercase tracking-wider block truncate">VFC (HRV)</span>
+                <p id="card-hrv" class="text-lg sm:text-2xl font-black text-white mt-1 whitespace-nowrap">-- <span class="text-[11px] font-normal text-slate-400">ms</span></p>
+                <span class="text-[9px] sm:text-[10px] text-slate-400 font-semibold block truncate" id="card-hrv-sub">--</span>
               </div>
 
               <!-- Pillar 2: Resting HR -->
-              <div class="p-3.5 rounded-2xl bg-slate-900/70 border border-violet-500/20 text-center">
-                <span class="text-[10px] font-bold text-violet-400 uppercase tracking-wider">FC Reposo</span>
-                <p id="card-rhr" class="text-xl sm:text-2xl font-black text-white mt-1">-- <span class="text-xs font-normal text-slate-400">lpm</span></p>
-                <span class="text-[10px] text-slate-400 font-semibold" id="card-rhr-sub">Línea base</span>
+              <div class="p-2.5 sm:p-3.5 rounded-2xl bg-slate-900/70 border border-violet-500/20 text-center min-w-0 overflow-hidden">
+                <span class="text-[9px] sm:text-[10px] font-bold text-violet-400 uppercase tracking-wider block truncate">FC Reposo</span>
+                <p id="card-rhr" class="text-lg sm:text-2xl font-black text-white mt-1 whitespace-nowrap">-- <span class="text-[11px] font-normal text-slate-400">lpm</span></p>
+                <span class="text-[9px] sm:text-[10px] text-slate-400 font-semibold block truncate" id="card-rhr-sub">Línea base</span>
               </div>
 
               <!-- Pillar 3: Sleep Duration -->
-              <div class="p-3.5 rounded-2xl bg-slate-900/70 border border-amber-500/20 text-center">
-                <span class="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Sueño</span>
-                <p id="card-sleep" class="text-xl sm:text-2xl font-black text-white mt-1">-- <span class="text-xs font-normal text-slate-400">h</span></p>
-                <span class="text-[10px] text-slate-400 font-semibold" id="card-sleep-sub">Meta: 8.0h</span>
+              <div class="p-2.5 sm:p-3.5 rounded-2xl bg-slate-900/70 border border-amber-500/20 text-center min-w-0 overflow-hidden">
+                <span class="text-[9px] sm:text-[10px] font-bold text-amber-400 uppercase tracking-wider block truncate">Sueño</span>
+                <p id="card-sleep" class="text-lg sm:text-2xl font-black text-white mt-1 whitespace-nowrap">-- <span class="text-[11px] font-normal text-slate-400">h</span></p>
+                <span class="text-[9px] sm:text-[10px] text-slate-400 font-semibold block truncate" id="card-sleep-sub">Base: --</span>
               </div>
             </div>
 
@@ -361,32 +361,36 @@
         <!-- ======================================================== -->
         <div class="lg:col-span-7 space-y-6">
 
-          <!-- 5. 7-Day Weekly Calendar Matrix with Clearly Labeled Pillars -->
-          <section class="glass-card rounded-3xl p-6">
-            <div class="flex items-center justify-between pb-3 border-b border-white/5">
+          <!-- 5. Pillars History with Range Selector (Diario | 7 Días | 15 Días) & Mobile Snap Carousel -->
+          <section class="glass-card rounded-3xl p-4 sm:p-6 overflow-hidden">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
               <div>
-                <h2 class="text-sm font-bold text-white uppercase tracking-wider">Historial Semanal de Pilares</h2>
-                <p class="text-[11px] text-slate-400 mt-0.5">Indicadores identificados: <strong class="text-cyan-400">S</strong> (Sueño) • <strong class="text-violet-400">V</strong> (VFC) • <strong class="text-amber-400">R</strong> (Reposo)</p>
+                <h2 class="text-sm font-bold text-white uppercase tracking-wider">Historial de Pilares</h2>
+                <p class="text-[11px] text-slate-400 mt-0.5"><strong class="text-cyan-400">S</strong> (Sueño) • <strong class="text-violet-400">V</strong> (VFC) • <strong class="text-amber-400">R</strong> (Reposo) vs tu rango típico 30d</p>
               </div>
-              <span class="text-[10px] font-semibold text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-full border border-white/5">7 Días</span>
+              <div id="range-selector" class="inline-flex items-center p-0.5 rounded-xl bg-slate-900/80 border border-white/10 self-start sm:self-auto shrink-0">
+                <button type="button" data-range="1" class="range-btn px-2.5 py-1 rounded-lg text-[10px] font-extrabold text-slate-400 hover:text-white transition-all">Diario</button>
+                <button type="button" data-range="7" class="range-btn px-2.5 py-1 rounded-lg text-[10px] font-extrabold text-cyan-400 bg-cyan-500/15 transition-all">7 Días</button>
+                <button type="button" data-range="15" class="range-btn px-2.5 py-1 rounded-lg text-[10px] font-extrabold text-slate-400 hover:text-white transition-all">15 Días</button>
+              </div>
             </div>
-            <!-- Dynamic 7-Day Matrix Container -->
-            <div id="weekly-calendar-grid" class="grid grid-cols-7 gap-2 pt-4"></div>
+            <!-- Dynamic Responsive Container (Horizontal snap scroll on mobile, zero overflow) -->
+            <div id="weekly-calendar-grid" class="flex overflow-x-auto gap-2.5 pt-4 pb-2 snap-x snap-mandatory"></div>
           </section>
 
           <!-- 6. Sleek HRV Evolution Trend Chart (Thin Modern Pill Bars) -->
-          <section class="glass-card rounded-3xl p-6">
+          <section class="glass-card rounded-3xl p-4 sm:p-6 overflow-hidden">
             <div class="flex items-center justify-between mb-4">
               <div>
                 <h2 class="text-sm font-bold text-white uppercase tracking-wider">Evolución de Variabilidad Cardíaca</h2>
-                <p class="text-[11px] text-slate-400">Morfología de ondas vs línea base de 30 días</p>
+                <p id="hrv-range-subtitle" class="text-[11px] text-slate-400">Últimos 7 días vs rango típico de 30 días</p>
               </div>
-              <span class="text-xs font-bold text-cyan-400" id="hrv-avg-label">Media: -- ms</span>
+              <span class="text-xs font-bold text-cyan-400 shrink-0" id="hrv-avg-label">Media: -- ms</span>
             </div>
 
-            <!-- Dynamic Slim Bar Track -->
-            <div class="relative pt-6 pb-2">
-              <div id="chart-bars" class="flex items-end justify-between h-32 gap-3 px-2"></div>
+            <!-- Dynamic Slim Bar Track (Scrollable on 15d mobile) -->
+            <div class="relative pt-6 pb-2 overflow-x-auto">
+              <div id="chart-bars" class="flex items-end justify-between h-32 gap-2.5 px-1 min-w-full"></div>
             </div>
           </section>
 
@@ -508,18 +512,26 @@
       <!-- DASHBOARD SUB-PANEL 3: IMPORTANT CLINICAL ALERTS (30 DAYS)   -->
       <!-- ============================================================ -->
       <div id="dash-panel-alerts" class="hidden space-y-6">
-        <section class="glass-card rounded-3xl p-6 border border-rose-500/20">
-          <div class="flex items-center justify-between pb-4 border-b border-white/5">
+        <section class="glass-card rounded-3xl p-4 sm:p-6 border border-rose-500/20">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/5">
             <div>
               <h2 class="text-sm font-bold text-rose-400 uppercase tracking-wider flex items-center gap-2">
-                <span>🚨</span> Alertas Clínicas Importantes (Últimos 30 Días)
+                <span>🚨</span> Alertas Clínicas Importantes (30 Días)
               </h2>
-              <p class="text-[11px] text-slate-400 mt-0.5">Eventos críticos de tu Apple Watch ordenados por fecha exacta (Hipertensión, Apnea del Sueño, Picos de Temperatura, Alteraciones Respiratorias, SpO2 bajo y Ruido).</p>
+              <p class="text-[11px] text-slate-400 mt-0.5">Divididas por tipo y fecha exacta. Al leerlas se limpia el contador de notificaciones.</p>
             </div>
-            <span id="alerts-total-pill" class="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30">0 eventos</span>
+            <div class="flex items-center gap-2 shrink-0">
+              <span id="alerts-total-pill" class="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30">0 eventos</span>
+              <button id="btn-mark-alerts-read" type="button" class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 transition-all">
+                ✓ Marcar leídas
+              </button>
+            </div>
           </div>
 
-          <div id="clinical-alerts-list" class="mt-4 space-y-3">
+          <!-- Alert Type Category Filter Pills -->
+          <div id="alerts-category-filters" class="flex items-center gap-1.5 overflow-x-auto py-3 border-b border-white/5"></div>
+
+          <div id="clinical-alerts-list" class="mt-4 space-y-4">
             <p class="text-xs text-slate-400 italic">Sin alertas clínicas registradas en los últimos 30 días.</p>
           </div>
         </section>

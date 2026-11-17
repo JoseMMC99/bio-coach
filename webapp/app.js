@@ -127,7 +127,8 @@ function initDashboardSubTabs() {
     if (tab === 'vitals') {
       if (panelVitals) panelVitals.classList.remove('hidden');
       btnVitals.className = 'flex-1 py-2 px-2 rounded-xl text-[11px] sm:text-xs font-extrabold text-cyan-400 bg-cyan-500/15 transition-all';
-      if (strip && window.currentDashboardData?.clinical_alerts?.length > 0) strip.classList.remove('hidden');
+      const unread = getUnreadAlerts(window.currentDashboardData?.clinical_alerts || []);
+      if (strip && unread.length > 0) strip.classList.remove('hidden');
     } else if (tab === 'exercise') {
       if (panelExercise) panelExercise.classList.remove('hidden');
       btnExercise.className = 'flex-1 py-2 px-2 rounded-xl text-[11px] sm:text-xs font-extrabold text-emerald-400 bg-emerald-500/15 transition-all';
@@ -136,6 +137,11 @@ function initDashboardSubTabs() {
       if (panelAlerts) panelAlerts.classList.remove('hidden');
       btnAlerts.className = 'flex-1 py-2 px-2 rounded-xl text-[11px] sm:text-xs font-extrabold text-rose-400 bg-rose-500/15 transition-all flex items-center justify-center gap-1.5';
       if (strip) strip.classList.add('hidden');
+      // Opening Alerts marks current alerts as read (clears notification badge immediately)
+      if (window.currentDashboardData?.clinical_alerts) {
+        markAlertsAsRead(window.currentDashboardData.clinical_alerts);
+        renderClinicalAlerts(window.currentDashboardData.clinical_alerts);
+      }
     }
   }
 
@@ -143,6 +149,57 @@ function initDashboardSubTabs() {
   btnExercise.addEventListener('click', () => switchSubTab('exercise'));
   btnAlerts.addEventListener('click', () => switchSubTab('alerts'));
   if (btnJumpAlerts) btnJumpAlerts.addEventListener('click', () => switchSubTab('alerts'));
+
+  // Range selector buttons (Diario=1, 7 Días=7, 15 Días=15)
+  window.activeHistoryRange = 7;
+  const rangeButtons = document.querySelectorAll('.range-btn');
+  rangeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const days = parseInt(btn.getAttribute('data-range') || '7', 10);
+      window.activeHistoryRange = days;
+      rangeButtons.forEach(b => {
+        const active = parseInt(b.getAttribute('data-range'), 10) === days;
+        b.className = active
+          ? 'range-btn px-2.5 py-1 rounded-lg text-[10px] font-extrabold text-cyan-400 bg-cyan-500/15 transition-all'
+          : 'range-btn px-2.5 py-1 rounded-lg text-[10px] font-extrabold text-slate-400 hover:text-white transition-all';
+      });
+      if (window.currentDashboardData) {
+        applyActiveRangeViews(window.currentDashboardData);
+      }
+    });
+  });
+
+  // Manual "Marcar leídas" button inside Alerts tab
+  const btnMarkRead = document.getElementById('btn-mark-alerts-read');
+  if (btnMarkRead) {
+    btnMarkRead.addEventListener('click', () => {
+      if (window.currentDashboardData?.clinical_alerts) {
+        markAlertsAsRead(window.currentDashboardData.clinical_alerts);
+        renderClinicalAlerts(window.currentDashboardData.clinical_alerts);
+        showToast('Alertas marcadas como leídas', 'success');
+      }
+    });
+  }
+}
+
+// Notification Read/Unread state persisted in localStorage
+function getReadAlertIds() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem('BIOCOACH_READ_ALERTS') || '[]'));
+  } catch {
+    return new Set();
+  }
+}
+
+function markAlertsAsRead(alerts) {
+  const readSet = getReadAlertIds();
+  (alerts || []).forEach(a => { if (a.id) readSet.add(a.id); });
+  localStorage.setItem('BIOCOACH_READ_ALERTS', JSON.stringify([...readSet]));
+}
+
+function getUnreadAlerts(alerts) {
+  const readSet = getReadAlertIds();
+  return (alerts || []).filter(a => !readSet.has(a.id));
 }
 
 // 3. Nutrition Sub-Tabs (Balance & Calorías vs Metas & Configuración)
@@ -542,8 +599,9 @@ function processBiometricHistory(history, workouts) {
     };
   }
 
-  // Latest 7 days in chronological order for weekly calendar & charts; full up to 30 days for Typical Range baseline
-  const last7Chrono = [...history.slice(0, 7)].reverse();
+  // Full chronological history (up to 30 days) for Diario / 7d / 15d switching
+  const fullChrono = [...history].reverse();
+  const last7Chrono = fullChrono.slice(-7);
   const latest = history[0];
 
   const calcStats = (arr, fallbackMean = null) => {
@@ -562,26 +620,28 @@ function processBiometricHistory(history, workouts) {
   };
 
   // Calculate 30-day Typical Range (mean ± SD, like Apple Health Vitals)
-  const validHrv = history.filter(r => r.hrv_ms != null && Number(r.hrv_ms) > 0).map(r => Number(r.hrv_ms));
-  const validRhr = history.filter(r => r.resting_hr != null && Number(r.resting_hr) > 0).map(r => Number(r.resting_hr));
+  const validHrv = history.filter(r => r.hrv_ms != null && Number(r.hrv_ms) >= 5).map(r => Number(r.hrv_ms));
+  const validRhr = history.filter(r => r.resting_hr != null && Number(r.resting_hr) >= 35).map(r => Number(r.resting_hr));
+  const validSleep = history.filter(r => r.sleep_hours != null && Number(r.sleep_hours) >= 2.5).map(r => Number(r.sleep_hours));
   const validResp = history.filter(r => r.respiratory_rate != null && Number(r.respiratory_rate) > 0).map(r => Number(r.respiratory_rate));
   const validTemp = history.filter(r => r.wrist_temp_deviation != null).map(r => toCelsius(r.wrist_temp_deviation)).filter(v => v != null);
 
   const hrvStats = calcStats(validHrv, 55.0);
   const rhrStats = calcStats(validRhr, 60.0);
+  const sleepStats = calcStats(validSleep, 7.0);
   const respStats = calcStats(validResp, null);
   const tempStats = calcStats(validTemp, null);
 
   const baseHrv = hrvStats.mean;
   const baseRhr = rhrStats.mean;
+  const baseSleep = Math.max(6.0, Math.min(8.0, sleepStats.mean || 7.0));
   const baseResp = respStats.mean;
   const baseTemp = tempStats.mean;
-  const targetSleep = 8.0;
 
   const dayNamesEs = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
-  const weeklyCalendar = [];
+  const fullCalendar = [];
 
-  last7Chrono.forEach((r) => {
+  fullChrono.forEach((r) => {
     let dayName = "Día";
     if (r.recorded_date) {
       const dt = new Date(r.recorded_date + 'T12:00:00');
@@ -595,23 +655,30 @@ function processBiometricHistory(history, workouts) {
       Number(r.resting_hr),
       baseHrv,
       baseRhr,
-      targetSleep,
+      baseSleep,
       hrvStats.std,
-      rhrStats.std
+      rhrStats.std,
+      sleepStats.std
     );
 
-    weeklyCalendar.push({
+    fullCalendar.push({
       date: r.recorded_date,
       day_name: dayName,
       sleep: Number(r.sleep_hours),
+      deep_sleep: r.deep_sleep_hours,
+      rem_sleep: r.rem_sleep_hours,
       hrv: Number(r.hrv_ms),
       rhr: Number(r.resting_hr),
-      overall_score: r.recovery_score || evalPillars.score,
+      resp: r.respiratory_rate,
+      temp_c: toCelsius(r.wrist_temp_deviation),
+      overall_score: evalPillars.score,
       traffic_light: evalPillars.trafficLight,
       pillars: evalPillars.pillars,
       worst_aspect: evalPillars.worstAspect
     });
   });
+
+  const weeklyCalendar = fullCalendar.slice(-7);
 
   const todayPillars = evaluateDailyPillars(
     Number(latest.sleep_hours),
@@ -619,9 +686,10 @@ function processBiometricHistory(history, workouts) {
     Number(latest.resting_hr),
     baseHrv,
     baseRhr,
-    targetSleep,
+    baseSleep,
     hrvStats.std,
-    rhrStats.std
+    rhrStats.std,
+    sleepStats.std
   );
 
   // Build automatic clinical verdict if shortcut uploaded raw biometrics without Gemini text
@@ -693,6 +761,9 @@ function processBiometricHistory(history, workouts) {
 
     if (ex.hypertension_events) {
       clinicalAlerts.push({
+        id: `hypertension_${dt}`,
+        category: 'hypertension',
+        categoryLabel: '🫀 Hipertensión',
         date: dt,
         severity: 'CRITICAL',
         icon: '🫀',
@@ -703,6 +774,9 @@ function processBiometricHistory(history, workouts) {
     }
     if (ex.sleep_apnea_events) {
       clinicalAlerts.push({
+        id: `apnea_${dt}`,
+        category: 'apnea',
+        categoryLabel: '🫁 Apnea & Respiración',
         date: dt,
         severity: 'CRITICAL',
         icon: '🫁',
@@ -713,6 +787,9 @@ function processBiometricHistory(history, workouts) {
     }
     if (tC != null && baseTemp != null && tC >= baseTemp + 0.65) {
       clinicalAlerts.push({
+        id: `temp_${dt}`,
+        category: 'temperature',
+        categoryLabel: '🌡️ Temperatura',
         date: dt,
         severity: 'HIGH',
         icon: '🌡️',
@@ -723,6 +800,9 @@ function processBiometricHistory(history, workouts) {
     }
     if (bd != null && bd >= 18.0 && !ex.sleep_apnea_events) {
       clinicalAlerts.push({
+        id: `breath_${dt}`,
+        category: 'apnea',
+        categoryLabel: '🫁 Apnea & Respiración',
         date: dt,
         severity: 'HIGH',
         icon: '😮‍💨',
@@ -733,6 +813,9 @@ function processBiometricHistory(history, workouts) {
     }
     if (sp2 != null && sp2 < 93.0) {
       clinicalAlerts.push({
+        id: `spo2_${dt}`,
+        category: 'spo2',
+        categoryLabel: '🩸 Oxígeno (SpO2)',
         date: dt,
         severity: 'MODERATE',
         icon: '🩸',
@@ -743,6 +826,9 @@ function processBiometricHistory(history, workouts) {
     }
     if (ex.audio_exposure_events && ex.audio_exposure_events >= 2) {
       clinicalAlerts.push({
+        id: `audio_${dt}`,
+        category: 'audio',
+        categoryLabel: '🔊 Ruido Ambiental',
         date: dt,
         severity: 'MODERATE',
         icon: '🔊',
@@ -769,7 +855,7 @@ function processBiometricHistory(history, workouts) {
     clinical_alerts: clinicalAlerts,
     today: {
       date: latest.recorded_date,
-      score: latest.recovery_score || todayPillars.score,
+      score: todayPillars.score,
       traffic_light: todayPillars.trafficLight,
       hrv: latest.hrv_ms,
       rhr: latest.resting_hr,
@@ -800,6 +886,7 @@ function processBiometricHistory(history, workouts) {
       extra_metrics: mergedExtra,
       base_hrv: baseHrv,
       base_rhr: baseRhr,
+      base_sleep: baseSleep,
       base_resp: baseResp,
       base_temp: baseTemp,
       base_spo2: baseSpo2,
@@ -820,7 +907,15 @@ function processBiometricHistory(history, workouts) {
       sleep: last7Chrono.map(r => Number(r.sleep_hours || 0)),
       baseHrv: baseHrv
     },
+    full_trends: {
+      dates: fullChrono.map(r => r.recorded_date),
+      hrv: fullChrono.map(r => Number(r.hrv_ms || 0)),
+      rhr: fullChrono.map(r => Number(r.resting_hr || 0)),
+      sleep: fullChrono.map(r => Number(r.sleep_hours || 0)),
+      baseHrv: baseHrv
+    },
     weekly_calendar: weeklyCalendar,
+    full_calendar: fullCalendar,
     recent_workouts: workouts.map(w => ({
       type: w.workout_type || "entrenamiento",
       duration: w.duration_minutes || 0,
@@ -831,27 +926,31 @@ function processBiometricHistory(history, workouts) {
   };
 }
 
-// Evaluates the 3 Pillars (HRV, RHR, Sleep) using dynamic Typical Range (like Apple Health Vitals)
-function evaluateDailyPillars(sleep, hrv, rhr, baseHrv, baseRhr, targetSleep, stdHrv = 0, stdRhr = 0) {
+// Evaluates the 3 Pillars (HRV, RHR, Sleep) using real 30-day Typical Range (Apple Health Vitals style)
+function evaluateDailyPillars(sleep, hrv, rhr, baseHrv, baseRhr, baseSleep, stdHrv = 0, stdRhr = 0, stdSleep = 0) {
+  // 1. HRV vs Typical Range (mean - 1.1 SD is lower Typical boundary)
   let hrvRatio = (hrv && baseHrv > 0) ? (hrv / baseHrv) : 1.0;
-  let hrvTypicalDrop = (baseHrv > 0 && stdHrv > 0) ? Math.min(0.88, 1 - (stdHrv / baseHrv)) : 0.88;
-  let hrvLowCutoff = Math.max(0.65, hrvTypicalDrop - 0.14);
-  let hrvScore = Math.min(100, Math.round(hrvRatio * 85));
-  let hrvStatus = hrvRatio >= hrvTypicalDrop ? "GREEN" : (hrvRatio >= hrvLowCutoff ? "YELLOW" : "RED");
-  let hrvSev = hrvStatus === "GREEN" ? "NONE" : (hrvStatus === "YELLOW" ? "MODERATE" : (hrvRatio < 0.62 ? "CRITICAL" : "HIGH"));
+  let hrvGreenFloor = Math.max(20, baseHrv - Math.max(stdHrv * 1.1, 6.0));
+  let hrvYellowFloor = Math.max(15, baseHrv - Math.max(stdHrv * 1.65, 12.0));
+  let hrvStatus = (!hrv || hrv >= hrvGreenFloor) ? "GREEN" : (hrv >= hrvYellowFloor ? "YELLOW" : "RED");
+  let hrvScore = Math.max(15, Math.min(100, Math.round(hrvRatio * 86)));
+  let hrvSev = hrvStatus === "GREEN" ? "NONE" : (hrvStatus === "YELLOW" ? "MODERATE" : "HIGH");
 
+  // 2. Resting HR vs Typical Range (mean + 1.25 SD is upper Typical boundary)
   let rhrDiff = (rhr && baseRhr > 0) ? (rhr - baseRhr) : 0;
-  // Typical RHR tolerance mirrors Apple Vitals (~1.25 SD, minimum ±4 bpm so normal fluctuations stay GREEN/Typical)
-  let rhrGreenBand = Math.max(4.0, stdRhr * 1.25);
-  let rhrYellowBand = Math.max(8.5, stdRhr * 2.0);
+  let rhrGreenBand = Math.max(5.0, stdRhr * 1.25);
+  let rhrYellowBand = Math.max(9.5, stdRhr * 2.1);
   let rhrStatus = rhrDiff <= rhrGreenBand ? "GREEN" : (rhrDiff <= rhrYellowBand ? "YELLOW" : "RED");
-  let rhrScore = Math.max(15, Math.min(100, Math.round(88 - (Math.max(0, rhrDiff) * 3.0))));
+  let rhrScore = Math.max(15, Math.min(100, Math.round(88 - (Math.max(0, rhrDiff) * 2.5))));
   let rhrSev = rhrStatus === "GREEN" ? "NONE" : (rhrStatus === "YELLOW" ? "MODERATE" : "HIGH");
 
-  let sleepRatio = (sleep && targetSleep > 0) ? (sleep / targetSleep) : 0.9;
-  let sleepStatus = sleepRatio >= 0.88 ? "GREEN" : (sleepRatio >= 0.70 ? "YELLOW" : "RED");
-  let sleepScore = Math.max(10, Math.round(sleepRatio * 85));
-  let sleepSev = sleepRatio >= 0.88 ? "NONE" : (sleepRatio >= 0.70 ? "MODERATE" : (sleepRatio < 0.55 ? "CRITICAL" : "HIGH"));
+  // 3. Sleep vs Personal Typical Baseline + healthy floor (6h+ typical = GREEN, 5-6h = YELLOW, <5h = RED)
+  let sleepRef = baseSleep || 7.0;
+  let sleepGreenFloor = Math.min(6.0, Math.max(5.75, sleepRef - Math.max(stdSleep * 0.6, 0.5)));
+  let sleepStatus = (!sleep || sleep >= sleepGreenFloor) ? "GREEN" : (sleep >= 5.0 ? "YELLOW" : "RED");
+  let sleepRatio = (sleep && sleepRef > 0) ? (sleep / sleepRef) : 0.9;
+  let sleepScore = Math.max(10, Math.min(100, Math.round(sleepRatio * 88)));
+  let sleepSev = sleepStatus === "GREEN" ? "NONE" : (sleepStatus === "YELLOW" ? "MODERATE" : (sleep < 4.0 ? "CRITICAL" : "HIGH"));
 
   const score = Math.round((hrvScore * 0.45) + (rhrScore * 0.25) + (sleepScore * 0.30));
   const trafficLight = score >= 75 ? "GREEN" : (score >= 50 ? "YELLOW" : "RED");
@@ -879,7 +978,7 @@ function evaluateDailyPillars(sleep, hrv, rhr, baseHrv, baseRhr, targetSleep, st
       pillar: "SLEEP",
       label: "Sueño",
       value: sleep ? `${sleep.toFixed(1)} h` : "--",
-      delta: `${(sleep - targetSleep).toFixed(1)} h`,
+      delta: `${(sleep - sleepRef) >= 0 ? '+' : ''}${(sleep - sleepRef).toFixed(1)} h`,
       status: sleepStatus,
       severity: sleepSev,
       score: sleepScore
@@ -994,20 +1093,46 @@ function renderDashboard(data) {
 
   const cardSleep = document.getElementById('card-sleep');
   const cardSleepSub = document.getElementById('card-sleep-sub');
-  if (cardSleep) cardSleep.innerHTML = `${today.sleep ? Number(today.sleep).toFixed(1) : '--'} <span class="text-xs font-normal text-slate-400">h</span>`;
+  if (cardSleep) cardSleep.innerHTML = `${today.sleep ? Number(today.sleep).toFixed(1) : '--'} <span class="text-[11px] font-normal text-slate-400">h</span>`;
   if (cardSleepSub && today.pillars?.sleep) {
-    cardSleepSub.textContent = `Meta: 8.0h (${today.pillars.sleep.delta})`;
-    cardSleepSub.className = `text-[10px] font-semibold ${today.pillars.sleep.status === 'GREEN' ? 'text-emerald-400' : (today.pillars.sleep.status === 'YELLOW' ? 'text-amber-400' : 'text-rose-400')}`;
+    const baseSl = today.base_sleep ? today.base_sleep.toFixed(1) : '7.0';
+    cardSleepSub.textContent = `Base ${baseSl}h (${today.pillars.sleep.delta})`;
+    cardSleepSub.className = `text-[9px] sm:text-[10px] font-semibold block truncate ${today.pillars.sleep.status === 'GREEN' ? 'text-emerald-400' : (today.pillars.sleep.status === 'YELLOW' ? 'text-amber-400' : 'text-rose-400')}`;
   }
 
   renderVitalsAndSleepStages(today);
   renderExerciseAndMobility(today);
   renderClinicalAlerts(data.clinical_alerts || []);
   renderWorstAspect(today.worst_aspect);
-  renderWeeklyCalendar(data.weekly_calendar || []);
-  renderChartBars(data.trends);
+  applyActiveRangeViews(data);
   renderWorkouts(data.recent_workouts);
   renderCalorieMatrix();
+}
+
+// Applies the active timeframe (Diario=1, 7 Días=7, 15 Días=15) to History & HRV Trend charts
+function applyActiveRangeViews(data) {
+  const range = window.activeHistoryRange || 7;
+  const fullCal = data.full_calendar || data.weekly_calendar || [];
+  const fullTr = data.full_trends || data.trends || { dates: [], hrv: [], rhr: [], sleep: [], baseHrv: 50 };
+
+  const slicedCal = fullCal.slice(-range);
+  const slicedTrends = {
+    dates: (fullTr.dates || []).slice(-range),
+    hrv: (fullTr.hrv || []).slice(-range),
+    rhr: (fullTr.rhr || []).slice(-range),
+    sleep: (fullTr.sleep || []).slice(-range),
+    baseHrv: fullTr.baseHrv
+  };
+
+  const subEl = document.getElementById('hrv-range-subtitle');
+  if (subEl) {
+    subEl.textContent = range === 1
+      ? 'Lectura de hoy vs tu media de 30 días'
+      : `Últimos ${slicedCal.length} días vs tu media de 30 días`;
+  }
+
+  renderWeeklyCalendar(slicedCal, range);
+  renderChartBars(slicedTrends, range);
 }
 
 // 5b. Render Sleep Architecture Stages & Apple Vitals Card
@@ -1066,72 +1191,138 @@ function renderExerciseAndMobility(t) {
   setText('mob-sixmin', ex.six_min_walk_m != null ? `${Math.round(ex.six_min_walk_m)} m` : '-- m');
 }
 
-// 5d. Render Important Clinical Alerts (Hypertension, Sleep Apnea, Fever Spikes, High Breathing Disturbances) with exact dates
-function renderClinicalAlerts(alerts) {
+// 5d. Render Important Clinical Alerts grouped by type with notification read/unread state
+function renderClinicalAlerts(alerts, activeCategory = null) {
   const listEl = document.getElementById('clinical-alerts-list');
+  const filterEl = document.getElementById('alerts-category-filters');
   const badgeEl = document.getElementById('alerts-tab-badge');
   const pillEl = document.getElementById('alerts-total-pill');
   const stripEl = document.getElementById('clinical-alerts-strip');
   const stripText = document.getElementById('clinical-alerts-strip-text');
 
-  const count = alerts.length;
+  if (activeCategory !== null) window.activeAlertCategory = activeCategory;
+  const selectedCat = window.activeAlertCategory || 'all';
+
+  const readSet = getReadAlertIds();
+  const unreadAlerts = alerts.filter(a => !readSet.has(a.id));
+  const unreadCount = unreadAlerts.length;
+  const totalCount = alerts.length;
+
+  // Notification badge shows ONLY unread count (clears once read!)
   if (badgeEl) {
-    badgeEl.textContent = String(count);
-    badgeEl.classList.toggle('hidden', count === 0);
+    badgeEl.textContent = String(unreadCount);
+    badgeEl.classList.toggle('hidden', unreadCount === 0);
   }
   if (pillEl) {
-    pillEl.textContent = `${count} evento${count === 1 ? '' : 's'}`;
+    pillEl.textContent = unreadCount > 0
+      ? `${unreadCount} nueva${unreadCount === 1 ? '' : 's'} / ${totalCount} total`
+      : `${totalCount} leída${totalCount === 1 ? '' : 's'}`;
   }
 
-  // Update top compact banner on Vitals tab
+  // Top compact banner on Vitals tab shows ONLY unread alerts
   if (stripEl && stripText) {
-    const crit = alerts.filter(a => a.severity === 'CRITICAL');
-    if (count > 0) {
+    if (unreadCount > 0) {
       const panelVitals = document.getElementById('dash-panel-vitals');
       if (panelVitals && !panelVitals.classList.contains('hidden')) {
         stripEl.classList.remove('hidden');
       }
+      const crit = unreadAlerts.filter(a => a.severity === 'CRITICAL');
       if (crit.length > 0) {
         stripText.textContent = `${crit.map(c => `${c.title} (${c.date})`).slice(0, 2).join(' • ')}`;
       } else {
-        stripText.textContent = `${count} alerta(s) importante(s) en los últimos 30 días (${alerts[0].date})`;
+        stripText.textContent = `${unreadCount} notificación(es) clínica(s) nueva(s) (${unreadAlerts[0].date})`;
       }
     } else {
       stripEl.classList.add('hidden');
     }
   }
 
+  // Build Category Filter Pills dynamically from existing alert types
+  if (filterEl) {
+    const catMap = new Map();
+    alerts.forEach(a => {
+      const k = a.category || 'other';
+      if (!catMap.has(k)) catMap.set(k, { label: a.categoryLabel || 'Otras', count: 0 });
+      catMap.get(k).count += 1;
+    });
+
+    const pills = [{ key: 'all', label: `Todas (${totalCount})` }];
+    catMap.forEach((v, k) => pills.push({ key: k, label: `${v.label} (${v.count})` }));
+
+    filterEl.innerHTML = pills.map(p => {
+      const isAct = selectedCat === p.key;
+      const cls = isAct
+        ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+        : 'bg-slate-900/70 text-slate-400 border-white/10 hover:text-white';
+      return `<button type="button" data-alert-cat="${p.key}" class="alert-cat-btn shrink-0 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all ${cls}">${p.label}</button>`;
+    }).join('');
+
+    filterEl.querySelectorAll('.alert-cat-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        renderClinicalAlerts(alerts, btn.getAttribute('data-alert-cat') || 'all');
+      });
+    });
+  }
+
   if (!listEl) return;
-  if (count === 0) {
+  if (totalCount === 0) {
     listEl.innerHTML = `<div class="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 font-semibold">✅ Sin alertas clínicas críticas ni anomalías relevantes en los últimos 30 días.</div>`;
     return;
   }
 
-  listEl.innerHTML = alerts.map(a => {
+  const filtered = selectedCat === 'all' ? alerts : alerts.filter(a => a.category === selectedCat);
+
+  // Group filtered alerts cleanly by type (categoryLabel)
+  const grouped = new Map();
+  filtered.forEach(a => {
+    const key = a.categoryLabel || 'Otras Alertas';
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(a);
+  });
+
+  const renderCard = (a) => {
+    const isUnread = !readSet.has(a.id);
     const style = a.severity === 'CRITICAL'
-      ? 'border-rose-500/40 bg-rose-500/10 text-rose-300'
-      : (a.severity === 'HIGH'
-        ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
-        : 'border-sky-500/30 bg-sky-500/10 text-sky-300');
+      ? 'border-rose-500/40 bg-rose-500/10'
+      : (a.severity === 'HIGH' ? 'border-amber-500/35 bg-amber-500/10' : 'border-sky-500/25 bg-sky-500/5');
     const badgeStyle = a.severity === 'CRITICAL'
       ? 'bg-rose-500/25 text-rose-200'
       : (a.severity === 'HIGH' ? 'bg-amber-500/25 text-amber-200' : 'bg-sky-500/25 text-sky-200');
     return `
-      <div class="p-4 rounded-2xl border ${style} flex items-start gap-3">
-        <span class="text-2xl shrink-0 mt-0.5">${a.icon}</span>
+      <div class="p-3.5 rounded-2xl border ${style} flex items-start gap-3">
+        <span class="text-xl shrink-0 mt-0.5">${a.icon}</span>
         <div class="flex-1 min-w-0">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <h3 class="text-xs sm:text-sm font-extrabold text-white">${a.title}</h3>
+          <div class="flex flex-wrap items-center justify-between gap-1.5">
+            <h3 class="text-xs font-extrabold text-white flex items-center gap-1.5">
+              ${isUnread ? '<span class="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>' : ''}
+              <span>${a.title}</span>
+            </h3>
             <div class="flex items-center gap-1.5 shrink-0">
               <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-slate-900/70 text-slate-200">📅 ${a.date}</span>
               <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${badgeStyle}">${a.badge}</span>
             </div>
           </div>
-          <p class="text-[11px] text-slate-200 mt-1.5 leading-relaxed">${a.detail}</p>
+          <p class="text-[11px] text-slate-300 mt-1 leading-relaxed">${a.detail}</p>
         </div>
       </div>
     `;
-  }).join('');
+  };
+
+  let html = '';
+  grouped.forEach((items, groupTitle) => {
+    html += `
+      <div class="space-y-2">
+        <div class="flex items-center justify-between px-1">
+          <h4 class="text-[11px] font-black text-slate-300 uppercase tracking-wider">${groupTitle}</h4>
+          <span class="text-[10px] text-slate-500 font-semibold">${items.length} registro${items.length === 1 ? '' : 's'}</span>
+        </div>
+        <div class="space-y-2">
+          ${items.map(renderCard).join('')}
+        </div>
+      </div>
+    `;
+  });
+  listEl.innerHTML = html;
 }
 
 // 6. Highlight Worst Aspect of the Day
@@ -1166,24 +1357,68 @@ function renderWorstAspect(worst) {
   }
 }
 
-// 7. Weekly Calendar Matrix with Clearly Labeled 3 Pillars (S, V, R)
-function renderWeeklyCalendar(calendar) {
+// 7. Responsive Pillars History (Diario | 7 Días | 15 Días) - Zero Mobile Overflow
+function renderWeeklyCalendar(calendar, rangeDays = 7) {
   const grid = document.getElementById('weekly-calendar-grid');
   if (!grid) return;
 
   grid.innerHTML = '';
 
   if (!calendar || calendar.length === 0) {
-    grid.innerHTML = '<p class="col-span-7 text-center text-xs text-slate-500 py-4">Registra telemetría para poblar la semana.</p>';
+    grid.innerHTML = '<p class="w-full text-center text-xs text-slate-500 py-4">Registra telemetría para poblar el historial.</p>';
     return;
   }
 
-  calendar.forEach((d) => {
+  const getStatusColor = (st) => st === 'GREEN' ? 'text-emerald-400' : (st === 'YELLOW' ? 'text-amber-400' : 'text-rose-400');
+  const getStatusLabel = (st) => st === 'GREEN' ? 'Típico' : (st === 'YELLOW' ? 'Moderado' : 'Bajo');
+
+  // Expanded Daily Detail View (range === 1)
+  if (rangeDays === 1) {
+    const d = calendar[calendar.length - 1];
+    const p = d.pillars || {};
+    let scoreBg = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+    if (d.traffic_light === 'YELLOW') scoreBg = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+    else if (d.traffic_light === 'RED') scoreBg = 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+
+    grid.innerHTML = `
+      <div class="w-full glass-card rounded-2xl p-4 border border-cyan-500/25 bg-slate-900/50 space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-xs font-extrabold text-white uppercase">${d.day_name} • ${d.date}</span>
+            <p class="text-[11px] text-slate-400">Detalle diario vs rango típico de 30 días</p>
+          </div>
+          <span class="px-3 py-1 rounded-xl border text-sm font-black ${scoreBg}">${d.overall_score || '--'}/100</span>
+        </div>
+        <div class="grid grid-cols-3 gap-2.5 text-center">
+          <div class="p-2.5 rounded-xl bg-slate-950/60 border border-white/5">
+            <span class="text-[10px] font-black text-cyan-400 block">S • Sueño</span>
+            <strong class="text-base font-black ${getStatusColor(p.sleep?.status)}">${d.sleep ? d.sleep.toFixed(1) : '--'} h</strong>
+            <span class="block text-[9px] text-slate-400">${getStatusLabel(p.sleep?.status)}</span>
+          </div>
+          <div class="p-2.5 rounded-xl bg-slate-950/60 border border-white/5">
+            <span class="text-[10px] font-black text-violet-400 block">V • VFC</span>
+            <strong class="text-base font-black ${getStatusColor(p.hrv?.status)}">${d.hrv ? Math.round(d.hrv) : '--'} ms</strong>
+            <span class="block text-[9px] text-slate-400">${getStatusLabel(p.hrv?.status)}</span>
+          </div>
+          <div class="p-2.5 rounded-xl bg-slate-950/60 border border-white/5">
+            <span class="text-[10px] font-black text-amber-400 block">R • Reposo</span>
+            <strong class="text-base font-black ${getStatusColor(p.rhr?.status)}">${d.rhr ? Math.round(d.rhr) : '--'} lpm</strong>
+            <span class="block text-[9px] text-slate-400">${getStatusLabel(p.rhr?.status)}</span>
+          </div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  // Horizontal snap-scroll cards (96px fixed width -> NEVER clips or overflows on iPhone 15 Pro Max!)
+  calendar.forEach((d, idx) => {
     const col = document.createElement('div');
-    col.className = 'glass-card rounded-2xl p-2.5 flex flex-col items-center gap-1.5 border border-white/5 hover:border-cyan-500/40 transition-all';
+    const isToday = idx === calendar.length - 1;
+    col.className = `w-[96px] shrink-0 snap-start glass-card rounded-2xl p-2.5 flex flex-col items-center gap-1.5 border ${isToday ? 'border-cyan-500/50 bg-cyan-500/5' : 'border-white/5'} hover:border-cyan-500/40 transition-all overflow-hidden`;
 
     const dayLabel = d.day_name || 'Día';
-    const dayNum = d.date ? d.date.slice(8) : '';
+    const dayNum = d.date ? d.date.slice(5) : '';
 
     let scoreBg = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
     if (d.traffic_light === 'YELLOW') {
@@ -1193,40 +1428,46 @@ function renderWeeklyCalendar(calendar) {
     }
 
     const p = d.pillars || {};
-    const getStatusColor = (st) => st === 'GREEN' ? 'text-emerald-400' : (st === 'YELLOW' ? 'text-amber-400' : 'text-rose-400');
 
     col.innerHTML = `
-      <span class="text-[10px] font-bold text-slate-400 uppercase">${dayLabel}</span>
-      <span class="text-[9px] text-slate-500 font-semibold">${dayNum}</span>
-      <div class="px-2 py-0.5 rounded-lg border text-[11px] font-black ${scoreBg}">
+      <div class="flex items-center justify-between w-full px-0.5">
+        <span class="text-[10px] font-bold text-slate-300 uppercase">${dayLabel}</span>
+        <span class="text-[9px] text-slate-500 font-mono">${dayNum}</span>
+      </div>
+      <div class="px-2.5 py-0.5 rounded-lg border text-xs font-black ${scoreBg}">
         ${d.overall_score || '--'}
       </div>
-      <div class="flex flex-col gap-1 w-full pt-1.5 border-t border-white/5 text-[9px]">
-        <div class="flex items-center justify-between px-1 py-0.5 rounded bg-slate-900/60" title="Sueño: ${p.sleep?.value || '--'}">
+      <div class="flex flex-col gap-1 w-full pt-1.5 border-t border-white/5 text-[10px]">
+        <div class="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-900/60" title="Sueño: ${p.sleep?.value || '--'}">
           <span class="font-black text-cyan-400">S</span>
-          <span class="font-bold ${getStatusColor(p.sleep?.status)}">${d.sleep ? d.sleep.toFixed(1) : '--'}h</span>
+          <span class="font-bold whitespace-nowrap ${getStatusColor(p.sleep?.status)}">${d.sleep ? d.sleep.toFixed(1) : '--'}h</span>
         </div>
-        <div class="flex items-center justify-between px-1 py-0.5 rounded bg-slate-900/60" title="VFC: ${p.hrv?.value || '--'}">
+        <div class="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-900/60" title="VFC: ${p.hrv?.value || '--'}">
           <span class="font-black text-violet-400">V</span>
-          <span class="font-bold ${getStatusColor(p.hrv?.status)}">${d.hrv ? Math.round(d.hrv) : '--'}ms</span>
+          <span class="font-bold whitespace-nowrap ${getStatusColor(p.hrv?.status)}">${d.hrv ? Math.round(d.hrv) : '--'}ms</span>
         </div>
-        <div class="flex items-center justify-between px-1 py-0.5 rounded bg-slate-900/60" title="FC Reposo: ${p.rhr?.value || '--'}">
+        <div class="flex items-center justify-between px-1.5 py-0.5 rounded bg-slate-900/60" title="FC Reposo: ${p.rhr?.value || '--'}">
           <span class="font-black text-amber-400">R</span>
-          <span class="font-bold ${getStatusColor(p.rhr?.status)}">${d.rhr ? Math.round(d.rhr) : '--'}lpm</span>
+          <span class="font-bold whitespace-nowrap ${getStatusColor(p.rhr?.status)}">${d.rhr ? Math.round(d.rhr) : '--'}lpm</span>
         </div>
       </div>
     `;
 
-    if (d.worst_aspect && (d.worst_aspect.severity === 'HIGH' || d.worst_aspect.severity === 'CRITICAL')) {
+    if (d.traffic_light === 'RED') {
       col.classList.add('border-rose-500/50', 'bg-rose-500/5');
     }
 
     grid.appendChild(col);
   });
+
+  // Auto-scroll carousel smoothly to the newest day (right side) so Today is immediately visible
+  requestAnimationFrame(() => {
+    grid.scrollLeft = grid.scrollWidth;
+  });
 }
 
-// 8. Sleek Slim HRV Trend Evolution Bars
-function renderChartBars(trends) {
+// 8. Sleek Slim HRV Trend Evolution Bars (Supports 1d, 7d, 15d cleanly on mobile)
+function renderChartBars(trends, rangeDays = 7) {
   const container = document.getElementById('chart-bars');
   const avgLabel = document.getElementById('hrv-avg-label');
   if (!container) return;
@@ -1238,21 +1479,24 @@ function renderChartBars(trends) {
   }
 
   const baseHrv = trends.baseHrv || (trends.hrv.reduce((a, b) => a + b, 0) / trends.hrv.length);
-  if (avgLabel) avgLabel.textContent = `Media semanal: ${Math.round(baseHrv)} ms`;
+  if (avgLabel) avgLabel.textContent = `Base 30d: ${Math.round(baseHrv)} ms`;
 
-  const maxVal = Math.max(...trends.hrv, 80);
+  const maxVal = Math.max(...trends.hrv, 70);
+  const isCompact = rangeDays >= 15;
 
   trends.hrv.forEach((val, idx) => {
     const heightPercent = Math.max(15, Math.min(100, (val / maxVal) * 100));
     const dayLabel = trends.dates[idx] ? trends.dates[idx].slice(8) : `D${idx+1}`;
-    const isAboveBase = val >= baseHrv;
+    const isTypical = val >= (baseHrv * 0.80);
 
     const col = document.createElement('div');
-    col.className = 'flex-1 flex flex-col items-center gap-1.5 h-full justify-end group cursor-pointer';
+    col.className = isCompact
+      ? 'w-[28px] shrink-0 flex flex-col items-center gap-1.5 h-full justify-end group cursor-pointer'
+      : 'flex-1 min-w-[34px] flex flex-col items-center gap-1.5 h-full justify-end group cursor-pointer';
     col.innerHTML = `
       <span class="text-[9px] font-bold text-slate-400 group-hover:text-cyan-400 transition-colors">${Math.round(val)}</span>
       <div class="w-2.5 sm:w-3 bg-slate-800/80 rounded-full h-full flex items-end p-0.5 overflow-hidden">
-        <div class="w-full rounded-full transition-all duration-700 ${isAboveBase ? 'bg-gradient-to-t from-cyan-600 to-cyan-400' : 'bg-gradient-to-t from-amber-600 to-amber-400'}" style="height: ${heightPercent}%"></div>
+        <div class="w-full rounded-full transition-all duration-700 ${isTypical ? 'bg-gradient-to-t from-cyan-600 to-cyan-400' : 'bg-gradient-to-t from-amber-600 to-amber-400'}" style="height: ${heightPercent}%"></div>
       </div>
       <span class="text-[9px] text-slate-500 font-semibold group-hover:text-white transition-colors">${dayLabel}</span>
     `;

@@ -75,14 +75,15 @@ BEGIN
   IF v_raw IS NOT NULL AND v_raw > 0 AND v_raw < 250 THEN v_rhr := ROUND(v_raw, 2); END IF;
 
   v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.hrv_ms, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
-  IF v_raw IS NOT NULL AND v_raw > 0 AND v_raw < 500 THEN v_hrv := ROUND(v_raw, 2); END IF;
+  IF v_raw IS NOT NULL AND v_raw >= 5 AND v_raw < 500 THEN v_hrv := ROUND(v_raw, 2); END IF;
 
   v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.respiratory_rate, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
-  IF v_raw IS NOT NULL AND v_raw > 0 AND v_raw < 99 THEN v_resp := ROUND(v_raw, 2); END IF;
+  IF v_raw IS NOT NULL AND v_raw >= 6 AND v_raw < 60 THEN v_resp := ROUND(v_raw, 2); END IF;
 
   v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.spo2_pct, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
   IF v_raw IS NOT NULL AND v_raw > 0 THEN
-    v_spo2 := CASE WHEN v_raw <= 1.5 THEN ROUND(v_raw * 100.0, 1) ELSE ROUND(v_raw, 1) END;
+    v_raw := CASE WHEN v_raw <= 1.5 THEN ROUND(v_raw * 100.0, 1) ELSE ROUND(v_raw, 1) END;
+    IF v_raw >= 75 AND v_raw <= 100 THEN v_spo2 := v_raw; END IF;
   END IF;
 
   v_raw := NULLIF(SUBSTRING(REPLACE(COALESCE(sync_biocoach.wrist_temp_deviation, ''), ',', '.') FROM '-?[0-9]+(\.[0-9]+)?'), '')::NUMERIC;
