@@ -720,7 +720,7 @@
           </p>
         </div>
 
-        <!-- Prompt 0: Sincronización Inicial (Línea Base de 7 Días) -->
+        <!-- Prompt 0: Sincronización Inicial (Historial 7 Días - Registro Diario) -->
         <div class="glass-card p-4 rounded-2xl border border-white/10 space-y-2.5">
           <div class="flex items-center justify-between">
             <h3 class="text-xs font-black text-cyan-400 flex items-center gap-2">
@@ -730,20 +730,34 @@
               📋 Copiar Prompt
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">Ejecutar solo una vez al comenzar para sembrar tu línea base real de 7 días.</p>
-          <pre id="prompt-text-baseline" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "Sincronización Inicial BioCoach":
-Step 1: Calculate date 7 days before Current Date.
-Step 2: Find Health samples for Resting Heart Rate from the past 7 days, and calculate average value as Number.
-Step 3: Find Health samples for Heart Rate Variability SDNN from past 7 days, and calculate average value as Number.
-Step 4: Find Health samples for Sleep Analysis from past 7 days. Calculate average daily sleep duration in hours.
-Step 5: Format Current Date as "yyyy-MM-dd".
-Step 6: Make HTTP POST to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date":
-- Request Body: JSON with "recorded_date": formatted date, "sleep_hours": average sleep, "resting_hr": average heart rate, "hrv_ms": average hrv, "athlete_id": "{PIN}"
-- Headers: "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5", "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5", "Prefer": "resolution=merge-duplicates,return=representation", "x-athlete-token": "{PIN}"
-Step 7: Show Notification with title "BioCoach Inicial" and body containing the result from the URL request.</pre>
+          <p class="text-[10px] text-slate-400">Recorre los últimos 7 días y sube 7 filas individuales a Supabase (sueño y métricas día por día).</p>
+          <pre id="prompt-text-baseline" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "Sincronizar Historial 7 Días":
+Step 1: Add a List with numbers: 6, 5, 4, 3, 2, 1, 0.
+Step 2: Repeat with Each number in the List:
+  * Calculate Date: Subtract (Repeat Item) days from Current Date.
+  * Format Date as "yyyy-MM-dd" (DateString).
+  * Find Health samples for "Sleep Analysis" on that specific date. Calculate Sum of Duration in hours as Number.
+  * Find Health samples for "Resting Heart Rate" on that specific date. Get average value as Number.
+  * Find Health samples for "Heart Rate Variability SDNN" on that specific date. Get average value as Number.
+  * Create a Dictionary with:
+    - "recorded_date": DateString
+    - "sleep_hours": sleep duration
+    - "resting_hr": resting heart rate
+    - "hrv_ms": heart rate variability
+    - "athlete_id": "{PIN}"
+End Repeat.
+Step 3: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date":
+- Request Body: JSON with the Repeat Results (the array of 7 daily dictionaries)
+- Headers:
+  * "Content-Type": "application/json"
+  * "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
+  * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
+  * "Prefer": "resolution=merge-duplicates,return=representation"
+  * "x-athlete-token": "{PIN}"
+Step 4: Show Notification with title "BioCoach Historial" and body containing result from URL request.</pre>
         </div>
 
-        <!-- Prompt 1: Recuperación Matutina (Al Desactivar Modo Sueño) -->
+        <!-- Prompt 1: Recuperación Matutina (Ciclo Circadiano de 24h al Despertar) -->
         <div class="glass-card p-4 rounded-2xl border border-white/10 space-y-2.5">
           <div class="flex items-center justify-between">
             <h3 class="text-xs font-black text-white flex items-center gap-2">
@@ -753,27 +767,27 @@ Step 7: Show Notification with title "BioCoach Inicial" and body containing the 
               📋 Copiar Prompt
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">Toma exclusivamente el sueño de anoche (ventana de 14h), ignorando siestas y días previos.</p>
+          <p class="text-[10px] text-slate-400">Captura el ciclo completo de las últimas 24 horas cada mañana al apagar el modo sueño.</p>
           <pre id="prompt-text-recovery" class="p-3 rounded-xl bg-slate-950/80 text-[10px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all border border-white/5">Create an Apple Shortcut named "Recuperación Matutina":
-Step 1: Calculate date 14 hours before Current Date (this represents yesterday evening at 6:00 PM).
-Step 2: Find Health samples for "Sleep Analysis" where Start Date is after the calculated date (captures ONLY last night's sleep).
-Step 3: Calculate the Sum of Durations of the found sleep samples in hours, formatted as decimal number. If empty, default to 5.0.
-Step 4: Find latest Health sample for "Resting Heart Rate" (limit 1, newest). Get sample Value as Number.
-Step 5: Find latest Health sample for "Heart Rate Variability SDNN" (limit 1, newest). Get sample Value as Number.
-Step 6: Format Current Date as "yyyy-MM-dd".
-Step 7: Make HTTP POST to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date":
+Step 1: Find Health samples for "Sleep Analysis" where End Date is in the last 24 hours.
+Step 2: Calculate the total duration of the sleep samples in hours as a decimal Number (e.g. 5.0).
+Step 3: Find latest Health sample for "Resting Heart Rate" (limit 1, newest). Get sample Value as Number.
+Step 4: Find latest Health sample for "Heart Rate Variability SDNN" (limit 1, newest). Get sample Value as Number.
+Step 5: Format Current Date as "yyyy-MM-dd".
+Step 6: Make an HTTP POST request to "https://elizdnhmmhjrcdfmxxlg.supabase.co/rest/v1/daily_recovery?on_conflict=recorded_date":
 - Request Body: JSON with:
   * "recorded_date": formatted date
-  * "sleep_hours": calculated sleep hours
+  * "sleep_hours": total sleep hours
   * "resting_hr": Resting Heart Rate number
   * "hrv_ms": Heart Rate Variability number
   * "athlete_id": "{PIN}"
 - Headers:
+  * "Content-Type": "application/json"
   * "apikey": "sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
   * "Authorization": "Bearer sb_publishable_52J4Pni9JZK-iNcaoznbEg_YHbxCEi5"
   * "Prefer": "resolution=merge-duplicates,return=representation"
   * "x-athlete-token": "{PIN}"
-Step 8: Show Notification with title "BioCoach Matutino" and body containing result from URL request.</pre>
+Step 7: Show Notification with title "BioCoach Matutino" and body containing result from URL request.</pre>
         </div>
 
         <!-- Prompt 2: Fin de Entrenamiento -->
