@@ -57,6 +57,7 @@ MÉTRICAS DEL DÍA:
 - Frecuencia Cardíaca en Reposo: {ctx.metrics.resting_hr} bpm (Línea base: {ctx.profile.resting_hr} bpm)
 - Variabilidad Cardíaca (HRV): {ctx.metrics.hrv_ms} ms (Línea base: {ctx.profile.hrv_ms} ms)
 - Frecuencia Respiratoria: {ctx.metrics.respiratory_rate} rpm
+- Temperatura de Muñeca (Sueño): {ctx.metrics.wrist_temp_deviation} °C
 
 OBJETIVOS DEL ATLETA:
 {ctx.user_goals}
@@ -64,7 +65,7 @@ OBJETIVOS DEL ATLETA:
 REGLAS DE RESPUESTA:
 Entrega exactamente 3 secciones cortas, separadas por salto de línea:
 1. [Icono del semáforo] Semáforo y porcentaje de recuperación.
-2. Recomendación de entrenamiento de hoy (Intensidad alta/moderada/descanso activo).
+2. Recomendación de entrenamiento de hoy (Intensidad alta/moderada/descanso activo). Si detectas temperatura de muñeca elevada (p. ej. > +0.5 °C sobre lo habitual o >= 37.2 °C) y/o frecuencia respiratoria elevada (> 17 rpm) junto con HRV baja o FC reposo alta, advierte explícitamente de posible inicio de gripa o estrés inmunológico y prioriza reposo.
 3. Consejo de nutrición o hábito clave para el día.
 Máximo 250 caracteres en total. Sé directo, enérgico y sin relleno.
 """

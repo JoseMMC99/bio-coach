@@ -535,6 +535,38 @@ function processBiometricHistory(history, workouts) {
     targetSleep
   );
 
+  // Calculate 7-day rolling baselines for immune/illness biomarkers (Respiratory Rate & Wrist Temp)
+  const validResp = history.filter(r => r.respiratory_rate != null).map(r => Number(r.respiratory_rate));
+  const validTemp = history.filter(r => r.wrist_temp_deviation != null).map(r => Number(r.wrist_temp_deviation));
+  const baseResp = validResp.length > 0 ? (validResp.reduce((a, b) => a + b, 0) / validResp.length) : null;
+  const baseTemp = validTemp.length > 0 ? (validTemp.reduce((a, b) => a + b, 0) / validTemp.length) : null;
+
+  // Build automatic clinical verdict if shortcut uploaded raw biometrics without Gemini text
+  let autoVerdict = latest.gemini_verdict;
+  if (!autoVerdict) {
+    const respVal = latest.respiratory_rate != null ? Number(latest.respiratory_rate) : null;
+    const tempVal = latest.wrist_temp_deviation != null ? Number(latest.wrist_temp_deviation) : null;
+    const highTemp = tempVal != null && (
+      (baseTemp != null && tempVal >= baseTemp + 0.5) ||
+      (tempVal >= 37.2) ||
+      (tempVal >= 0.5 && tempVal < 5.0)
+    );
+    const highResp = respVal != null && (
+      (baseResp != null && respVal >= baseResp + 1.8) ||
+      respVal >= 18.0
+    );
+
+    if (highTemp || (highResp && todayPillars.trafficLight !== 'GREEN')) {
+      autoVerdict = `⚠️ Alerta inmune: signos tempranos de posible gripa o estrés inmunológico (${tempVal != null ? `Temp: ${tempVal}°C` : ''}${tempVal != null && respVal != null ? ', ' : ''}${respVal != null ? `Resp: ${respVal} rpm` : ''}). Prioriza reposo, hidratación y evita cargas altas.`;
+    } else if (todayPillars.trafficLight === 'GREEN') {
+      autoVerdict = `🟢 Recuperación óptima (${todayPillars.score}%). Biomarcadores estables, listo para entrenar.`;
+    } else if (todayPillars.trafficLight === 'YELLOW') {
+      autoVerdict = `🟡 Recuperación moderada (${todayPillars.score}%). Controla el volumen y prioriza sueño hoy.`;
+    } else {
+      autoVerdict = `🔴 Fatiga detectada (${todayPillars.score}%). Sistema nervioso bajo estrés, prioriza descanso activo.`;
+    }
+  }
+
   return {
     status: "success",
     is_day_one: false,
@@ -545,7 +577,14 @@ function processBiometricHistory(history, workouts) {
       hrv: latest.hrv_ms,
       rhr: latest.resting_hr,
       sleep: latest.sleep_hours,
-      verdict: latest.gemini_verdict || "Telemetría registrada y analizada.",
+      deep_sleep: latest.deep_sleep_hours,
+      rem_sleep: latest.rem_sleep_hours,
+      respiratory_rate: latest.respiratory_rate,
+      wrist_temp_deviation: latest.wrist_temp_deviation,
+      daylight_minutes: latest.daylight_minutes,
+      base_resp: baseResp,
+      base_temp: baseTemp,
+      verdict: autoVerdict,
       pillars: todayPillars.pillars,
       worst_aspect: todayPillars.worstAspect
     },
@@ -1256,9 +1295,9 @@ async function queryGeminiDirectly(userQuestion, apiKey) {
   let contextStr = "";
   if (window.currentDashboardData && window.currentDashboardData.today) {
     const t = window.currentDashboardData.today;
-    contextStr = ` Contexto actual del atleta hoy: Recuperación: ${t.score || '--'}%, Sueño: ${t.sleep || '--'}h, HRV: ${t.hrv || '--'}ms, FC Reposo: ${t.rhr || '--'} lpm.`;
+    contextStr = ` Contexto actual del atleta hoy (${t.date || '--'}): Recuperación: ${t.score || '--'}%, Sueño Total: ${t.sleep ?? '--'}h (Profundo: ${t.deep_sleep ?? '--'}h, REM: ${t.rem_sleep ?? '--'}h), HRV: ${t.hrv ?? '--'}ms, FC Reposo: ${t.rhr ?? '--'} lpm, Frecuencia Respiratoria: ${t.respiratory_rate ?? '--'} rpm (base: ${t.base_resp != null ? t.base_resp.toFixed(1) : '--'} rpm), Temperatura Muñeca: ${t.wrist_temp_deviation ?? '--'}°C (base: ${t.base_temp != null ? t.base_temp.toFixed(2) : '--'}°C), Luz Solar: ${t.daylight_minutes ?? '--'} min.`;
   }
-  const prompt = `Actúa como BioCoach AI, un fisiólogo deportivo y entrenador de rendimiento de élite. Responde de forma concisa (máximo 3 párrafos), motivadora y con base científica en español a esta consulta del atleta:${contextStr}\nPregunta: "${userQuestion}"`;
+  const prompt = `Actúa como BioCoach AI, un fisiólogo deportivo y entrenador de rendimiento de élite. Responde de forma concisa (máximo 3 párrafos), motivadora y con base científica en español a esta consulta del atleta:${contextStr}\nIMPORTANTE: Evalúa siempre si la temperatura de muñeca o la frecuencia respiratoria están elevadas respecto a la línea base (especialmente junto con HRV baja o FC reposo alta); de ser así, advierte claramente sobre un posible inicio de gripa, infección viral o estrés inmunológico y sugiere reposo e hidratación.\nPregunta: "${userQuestion}"`;
 
   const payload = {
     contents: [{ parts: [{ text: prompt }] }]
