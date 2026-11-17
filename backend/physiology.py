@@ -3,7 +3,7 @@ Physiological modeling and biometric engine for BioCoach AI.
 Calculates Daily Recovery, Autonomic Nervous System (ANS) Balance, Sleep Debt, and Workout Strain.
 """
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 @dataclass
 class DailyMetrics:
