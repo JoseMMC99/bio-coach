@@ -1,0 +1,42 @@
+# ==========================================
+# SEGURIDAD: NUNCA SUBIR CLAVES NI SECRETOS
+# ==========================================
+.env
+.env.*
+!.env.example
+*.key
+*.secret
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# Node / WebApp
+node_modules/
+.next/
+out/
+build/
+dist/
+.DS_Store
+Thumbs.db
+
+# Archivos de entorno local / scratch
+/package*.json
+*.bat
+*.reg
+*.log
+tools/
+sqlitebiter/
+sqlitebiter_repo/
+zapfast/
+alignerr_guidelines.txt
+check_crates.py
+fetch_issues.py
+read_log.py
+test_paths.bat
+test_perl.bat
