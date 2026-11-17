@@ -449,8 +449,8 @@ async function fetchDirectFromSupabase(athleteKey) {
   };
 
   const recUrl = athleteKey
-    ? `${SUPABASE_CONFIG.url}/rest/v1/daily_recovery?athlete_id=eq.${encodeURIComponent(athleteKey)}&order=recorded_date.desc&limit=7`
-    : `${SUPABASE_CONFIG.url}/rest/v1/daily_recovery?is_demo=eq.true&order=recorded_date.desc&limit=7`;
+    ? `${SUPABASE_CONFIG.url}/rest/v1/daily_recovery?athlete_id=eq.${encodeURIComponent(athleteKey)}&order=recorded_date.desc&limit=30`
+    : `${SUPABASE_CONFIG.url}/rest/v1/daily_recovery?is_demo=eq.true&order=recorded_date.desc&limit=30`;
 
   const wkUrl = athleteKey
     ? `${SUPABASE_CONFIG.url}/rest/v1/workouts?athlete_id=eq.${encodeURIComponent(athleteKey)}&order=created_at.desc&limit=6`
@@ -469,7 +469,7 @@ async function fetchDirectFromSupabase(athleteKey) {
   return processBiometricHistory(history, workouts);
 }
 
-// Client-Side Physiological Modeler (Replicates Python physiology engine)
+// Client-Side Physiological Modeler (Replicates Python physiology engine + 30-day Apple Vitals Typical Range)
 function processBiometricHistory(history, workouts) {
   if (!history || history.length === 0) {
     return {
@@ -482,21 +482,46 @@ function processBiometricHistory(history, workouts) {
     };
   }
 
-  // Chronological order for trend line charts
-  const chronological = [...history].reverse();
+  // Latest 7 days in chronological order for weekly calendar & charts; full up to 30 days for Typical Range baseline
+  const last7Chrono = [...history.slice(0, 7)].reverse();
   const latest = history[0];
 
-  // Calculate 7-day rolling baseline
-  const validHrv = history.filter(r => r.hrv_ms != null).map(r => Number(r.hrv_ms));
-  const validRhr = history.filter(r => r.resting_hr != null).map(r => Number(r.resting_hr));
-  const baseHrv = validHrv.length > 0 ? (validHrv.reduce((a, b) => a + b, 0) / validHrv.length) : 55.0;
-  const baseRhr = validRhr.length > 0 ? (validRhr.reduce((a, b) => a + b, 0) / validRhr.length) : 54.0;
+  const calcStats = (arr, fallbackMean = null) => {
+    if (!arr || arr.length === 0) return { mean: fallbackMean, std: 0 };
+    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+    if (arr.length < 2) return { mean, std: 0 };
+    const variance = arr.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / arr.length;
+    return { mean, std: Math.sqrt(variance) };
+  };
+
+  // Normalize wrist temperature to Celsius if Shortcuts sent Fahrenheit (> 50°F)
+  const toCelsius = (val) => {
+    if (val == null || isNaN(Number(val))) return null;
+    const n = Number(val);
+    return n > 50 ? Number(((n - 32) * 5 / 9).toFixed(2)) : n;
+  };
+
+  // Calculate 30-day Typical Range (mean ± SD, like Apple Health Vitals)
+  const validHrv = history.filter(r => r.hrv_ms != null && Number(r.hrv_ms) > 0).map(r => Number(r.hrv_ms));
+  const validRhr = history.filter(r => r.resting_hr != null && Number(r.resting_hr) > 0).map(r => Number(r.resting_hr));
+  const validResp = history.filter(r => r.respiratory_rate != null && Number(r.respiratory_rate) > 0).map(r => Number(r.respiratory_rate));
+  const validTemp = history.filter(r => r.wrist_temp_deviation != null).map(r => toCelsius(r.wrist_temp_deviation)).filter(v => v != null);
+
+  const hrvStats = calcStats(validHrv, 55.0);
+  const rhrStats = calcStats(validRhr, 60.0);
+  const respStats = calcStats(validResp, null);
+  const tempStats = calcStats(validTemp, null);
+
+  const baseHrv = hrvStats.mean;
+  const baseRhr = rhrStats.mean;
+  const baseResp = respStats.mean;
+  const baseTemp = tempStats.mean;
   const targetSleep = 8.0;
 
   const dayNamesEs = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
   const weeklyCalendar = [];
 
-  chronological.forEach((r) => {
+  last7Chrono.forEach((r) => {
     let dayName = "Día";
     if (r.recorded_date) {
       const dt = new Date(r.recorded_date + 'T12:00:00');
@@ -510,7 +535,9 @@ function processBiometricHistory(history, workouts) {
       Number(r.resting_hr),
       baseHrv,
       baseRhr,
-      targetSleep
+      targetSleep,
+      hrvStats.std,
+      rhrStats.std
     );
 
     weeklyCalendar.push({
@@ -532,41 +559,33 @@ function processBiometricHistory(history, workouts) {
     Number(latest.resting_hr),
     baseHrv,
     baseRhr,
-    targetSleep
+    targetSleep,
+    hrvStats.std,
+    rhrStats.std
   );
-
-  // Normalize wrist temperature to Celsius if Shortcuts sent Fahrenheit (> 50°F)
-  const toCelsius = (val) => {
-    if (val == null || isNaN(Number(val))) return null;
-    const n = Number(val);
-    return n > 50 ? Number(((n - 32) * 5 / 9).toFixed(2)) : n;
-  };
-
-  // Calculate 7-day rolling baselines for immune/illness biomarkers (Respiratory Rate & Wrist Temp)
-  const validResp = history.filter(r => r.respiratory_rate != null).map(r => Number(r.respiratory_rate));
-  const validTemp = history.filter(r => r.wrist_temp_deviation != null).map(r => toCelsius(r.wrist_temp_deviation)).filter(v => v != null);
-  const baseResp = validResp.length > 0 ? (validResp.reduce((a, b) => a + b, 0) / validResp.length) : null;
-  const baseTemp = validTemp.length > 0 ? (validTemp.reduce((a, b) => a + b, 0) / validTemp.length) : null;
 
   // Build automatic clinical verdict if shortcut uploaded raw biometrics without Gemini text
   let autoVerdict = latest.gemini_verdict;
   const latestTempC = toCelsius(latest.wrist_temp_deviation);
   if (!autoVerdict) {
     const respVal = latest.respiratory_rate != null ? Number(latest.respiratory_rate) : null;
+    const tempThreshold = baseTemp != null ? baseTemp + Math.max(tempStats.std * 1.8, 0.5) : 37.2;
+    const respThreshold = baseResp != null ? baseResp + Math.max(respStats.std * 1.8, 2.0) : 20.0;
+
     const highTemp = latestTempC != null && (
-      (baseTemp != null && validTemp.length >= 2 && latestTempC >= baseTemp + 0.5) ||
+      (baseTemp != null && validTemp.length >= 2 && latestTempC >= tempThreshold) ||
       (latestTempC >= 37.2) ||
       (latestTempC >= 0.5 && latestTempC < 5.0)
     );
     const highResp = respVal != null && (
-      (baseResp != null && validResp.length >= 2 && respVal >= baseResp + 2.0) ||
+      (baseResp != null && validResp.length >= 2 && respVal >= respThreshold) ||
       (baseResp == null && respVal >= 20.0)
     );
 
     if (highTemp || (highResp && todayPillars.trafficLight !== 'GREEN')) {
       autoVerdict = `⚠️ Alerta inmune: signos tempranos de posible gripa o estrés inmunológico (${latestTempC != null ? `Temp: ${latestTempC}°C` : ''}${latestTempC != null && respVal != null ? ', ' : ''}${respVal != null ? `Resp: ${respVal} rpm` : ''}). Prioriza reposo, hidratación y evita cargas altas.`;
     } else if (todayPillars.trafficLight === 'GREEN') {
-      autoVerdict = `🟢 Recuperación óptima (${todayPillars.score}%). Biomarcadores estables, listo para entrenar.`;
+      autoVerdict = `🟢 Recuperación óptima (${todayPillars.score}%). Biomarcadores dentro de tu rango típico de ${history.length} días.`;
     } else if (todayPillars.trafficLight === 'YELLOW') {
       autoVerdict = `🟡 Recuperación moderada (${todayPillars.score}%). Controla el volumen y prioriza sueño hoy.`;
     } else {
@@ -591,15 +610,16 @@ function processBiometricHistory(history, workouts) {
       daylight_minutes: latest.daylight_minutes,
       base_resp: baseResp,
       base_temp: baseTemp,
+      history_days: history.length,
       verdict: autoVerdict,
       pillars: todayPillars.pillars,
       worst_aspect: todayPillars.worstAspect
     },
     trends: {
-      dates: chronological.map(r => r.recorded_date),
-      hrv: chronological.map(r => Number(r.hrv_ms || 0)),
-      rhr: chronological.map(r => Number(r.resting_hr || 0)),
-      sleep: chronological.map(r => Number(r.sleep_hours || 0)),
+      dates: last7Chrono.map(r => r.recorded_date),
+      hrv: last7Chrono.map(r => Number(r.hrv_ms || 0)),
+      rhr: last7Chrono.map(r => Number(r.resting_hr || 0)),
+      sleep: last7Chrono.map(r => Number(r.sleep_hours || 0)),
       baseHrv: baseHrv
     },
     weekly_calendar: weeklyCalendar,
@@ -613,17 +633,22 @@ function processBiometricHistory(history, workouts) {
   };
 }
 
-// Evaluates the 3 Pillars (HRV, RHR, Sleep) and Identifies Primary Bottleneck
-function evaluateDailyPillars(sleep, hrv, rhr, baseHrv, baseRhr, targetSleep) {
+// Evaluates the 3 Pillars (HRV, RHR, Sleep) using dynamic Typical Range (like Apple Health Vitals)
+function evaluateDailyPillars(sleep, hrv, rhr, baseHrv, baseRhr, targetSleep, stdHrv = 0, stdRhr = 0) {
   let hrvRatio = (hrv && baseHrv > 0) ? (hrv / baseHrv) : 1.0;
+  let hrvTypicalDrop = (baseHrv > 0 && stdHrv > 0) ? Math.min(0.88, 1 - (stdHrv / baseHrv)) : 0.88;
+  let hrvLowCutoff = Math.max(0.65, hrvTypicalDrop - 0.14);
   let hrvScore = Math.min(100, Math.round(hrvRatio * 85));
-  let hrvStatus = hrvRatio >= 0.95 ? "GREEN" : (hrvRatio >= 0.78 ? "YELLOW" : "RED");
-  let hrvSev = hrvRatio >= 0.95 ? "NONE" : (hrvRatio >= 0.78 ? "MODERATE" : (hrvRatio < 0.65 ? "CRITICAL" : "HIGH"));
+  let hrvStatus = hrvRatio >= hrvTypicalDrop ? "GREEN" : (hrvRatio >= hrvLowCutoff ? "YELLOW" : "RED");
+  let hrvSev = hrvStatus === "GREEN" ? "NONE" : (hrvStatus === "YELLOW" ? "MODERATE" : (hrvRatio < 0.62 ? "CRITICAL" : "HIGH"));
 
   let rhrDiff = (rhr && baseRhr > 0) ? (rhr - baseRhr) : 0;
-  let rhrStatus = rhrDiff <= 2 ? "GREEN" : (rhrDiff <= 6 ? "YELLOW" : "RED");
-  let rhrScore = Math.max(15, Math.round(85 - (rhrDiff * 4)));
-  let rhrSev = rhrDiff <= 2 ? "NONE" : (rhrDiff <= 6 ? "MODERATE" : "HIGH");
+  // Typical RHR tolerance mirrors Apple Vitals (~1.25 SD, minimum ±4 bpm so normal fluctuations stay GREEN/Typical)
+  let rhrGreenBand = Math.max(4.0, stdRhr * 1.25);
+  let rhrYellowBand = Math.max(8.5, stdRhr * 2.0);
+  let rhrStatus = rhrDiff <= rhrGreenBand ? "GREEN" : (rhrDiff <= rhrYellowBand ? "YELLOW" : "RED");
+  let rhrScore = Math.max(15, Math.min(100, Math.round(88 - (Math.max(0, rhrDiff) * 3.0))));
+  let rhrSev = rhrStatus === "GREEN" ? "NONE" : (rhrStatus === "YELLOW" ? "MODERATE" : "HIGH");
 
   let sleepRatio = (sleep && targetSleep > 0) ? (sleep / targetSleep) : 0.9;
   let sleepStatus = sleepRatio >= 0.88 ? "GREEN" : (sleepRatio >= 0.70 ? "YELLOW" : "RED");
