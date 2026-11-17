@@ -105,3 +105,67 @@ class MetabolismEngine:
             active_calories_source=source,
             summary=summary
         )
+
+    def evaluate_calorie_balance(
+        self,
+        consumed_kcal: int,
+        target_kcal: int,
+        tdee: int,
+        goal: str = "cut"
+    ) -> dict:
+        """
+        Evaluates daily caloric balance against user's specific target and TDEE.
+        Returns traffic light (GREEN, YELLOW, RED), delta kcal, and physiological feedback.
+        """
+        delta = consumed_kcal - target_kcal
+        goal_lower = goal.lower()
+
+        if goal_lower == "cut":
+            # In a cut, staying near or under target deficit is GREEN.
+            # Consuming up to maintenance (TDEE) is YELLOW (maintenance, 0 deficit).
+            # Consuming above TDEE is RED (caloric surplus breaking the cut).
+            if consumed_kcal <= target_kcal + 75:
+                status = "GREEN"
+                verdict = f"Déficit cumplido ({delta:+d} kcal). Óptimo para pérdida de grasa."
+            elif consumed_kcal <= tdee + 50:
+                status = "YELLOW"
+                verdict = f"Calorías en rango de mantenimiento ({delta:+d} kcal vs meta). Sin déficit hoy."
+            else:
+                status = "RED"
+                verdict = f"Superávit calórico ({consumed_kcal - tdee:+d} kcal sobre TDEE). Exceso calórico."
+        elif goal_lower == "bulk":
+            # In a bulk, achieving the planned surplus is GREEN.
+            # Near maintenance is YELLOW (insufficient surplus for hypertrophy).
+            # In deficit is RED (failing bulk).
+            if target_kcal - 100 <= consumed_kcal <= target_kcal + 250:
+                status = "GREEN"
+                verdict = f"Superávit óptimo ({delta:+d} kcal). Estimula hipertrofia magra."
+            elif tdee - 50 <= consumed_kcal < target_kcal - 100:
+                status = "YELLOW"
+                verdict = "Calorías cerca de mantenimiento. Superávit tímido."
+            elif consumed_kcal < tdee - 50:
+                status = "RED"
+                verdict = f"Déficit calórico ({consumed_kcal - tdee:+d} kcal). Impide ganancia muscular."
+            else:
+                status = "YELLOW"
+                verdict = f"Superávit elevado ({delta:+d} kcal). Vigila ganancia de grasa."
+        else:
+            diff = abs(consumed_kcal - target_kcal)
+            if diff <= 150:
+                status = "GREEN"
+                verdict = f"Balance neutro ({delta:+d} kcal). Peso estable."
+            elif diff <= 300:
+                status = "YELLOW"
+                verdict = f"Ligera desviación ({delta:+d} kcal)."
+            else:
+                status = "RED"
+                verdict = f"Desviación calórica significativa ({delta:+d} kcal)."
+
+        return {
+            "consumed_kcal": consumed_kcal,
+            "target_kcal": target_kcal,
+            "tdee": tdee,
+            "delta_kcal": delta,
+            "traffic_light": status,
+            "verdict": verdict
+        }

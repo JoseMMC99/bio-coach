@@ -79,5 +79,25 @@ class TestMetabolismEngine(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.engine.calculate_bmr(zero_height)
 
+    def test_evaluate_calorie_balance_cut_green(self):
+        """In a cut goal, staying within deficit target produces GREEN traffic light."""
+        # target=2200, tdee=2600. Consumed 2150 is GREEN
+        res = self.engine.evaluate_calorie_balance(consumed_kcal=2150, target_kcal=2200, tdee=2600, goal="cut")
+        self.assertEqual(res["traffic_light"], "GREEN")
+        self.assertEqual(res["delta_kcal"], -50)
+
+    def test_evaluate_calorie_balance_cut_red_surplus(self):
+        """In a cut goal, consuming above TDEE produces RED traffic light."""
+        # target=2200, tdee=2600. Consumed 2800 is RED
+        res = self.engine.evaluate_calorie_balance(consumed_kcal=2800, target_kcal=2200, tdee=2600, goal="cut")
+        self.assertEqual(res["traffic_light"], "RED")
+        self.assertIn("Superávit", res["verdict"])
+
+    def test_evaluate_calorie_balance_bulk_green(self):
+        """In a bulk goal, achieving the targeted caloric surplus produces GREEN."""
+        # target=2900, tdee=2600. Consumed 2950 is GREEN
+        res = self.engine.evaluate_calorie_balance(consumed_kcal=2950, target_kcal=2900, tdee=2600, goal="bulk")
+        self.assertEqual(res["traffic_light"], "GREEN")
+
 if __name__ == "__main__":
     unittest.main()
